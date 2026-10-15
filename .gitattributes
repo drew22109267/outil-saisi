@@ -1,0 +1,9 @@
+*.sh text eol=lf
+*.py text eol=lf
+*.md text eol=lf
+*.mjs text eol=lf
+*.js text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.ipynb text eol=lf
+*.png binary

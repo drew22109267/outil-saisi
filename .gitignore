@@ -1,0 +1,25 @@
+# Données de patients : jamais sur GitHub
+donnees/
+resultats/
+*.csv
+*.json
+*.xlsx
+*.jpg
+*.jpeg
+*.png
+*.heic
+*.HEIC
+!outil-saisie/assets/*.png
+verification/sortie/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+.ipynb_checkpoints/
+
+# Éditeurs
+.vscode/
+.idea/
+.claude/

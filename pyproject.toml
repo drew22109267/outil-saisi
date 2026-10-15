@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "traitement-registres"
+version = "1.0.0"
+description = "Traitement des registres hospitaliers saisis avec l'outil de saisie : occupation, indicateurs, garde-fous"
+requires-python = ">=3.10"
+dependencies = ["pandas", "numpy", "matplotlib"]
+
+[project.optional-dependencies]
+verification = ["scipy", "statsmodels", "nbformat"]
+
+[tool.setuptools]
+packages = ["traitement"]
