@@ -234,8 +234,10 @@ au-delà, la saisie est à reprendre. Le contrôle se fait en plusieurs séances
 - **Navigation dans le temps** (graphes jour par jour, comme une application de cours de bourse) :
   **Jour · Semaine · Mois · Année** (chaque point devient la moyenne de la période) ; **−** / **+** ou la
   molette pour dézoomer ou zoomer à l'endroit pointé ; **‹ ›** ou glisser pour se déplacer ; **Tout** pour
-  revenir à toute la période ; **Animation** fait avancer les courbes dans le temps (Pause pour arrêter). La vue
-  est gardée pour chaque rubrique et s'applique aux trois méthodes.
+  revenir à toute la période. **Animation** fait avancer les courbes dans le temps comme un graphique de cours :
+  axes fixes, courbes dévoilées jour après jour, curseur avec la date et les valeurs ; **Pause** / **Reprendre**,
+  vitesse **×1, ×2, ×4**, **Rejouer**. Elle porte sur la période affichée (zoomer d'abord pour animer une saison) et
+  fonctionne aussi dans « Agrandir ». La vue est gardée pour chaque rubrique et s'applique aux trois méthodes.
 - **Légende cliquable** : un clic sur un élément de légende masque la courbe, la bande ou les barres
   correspondantes ; un second clic les réaffiche. Le choix est gardé, même après un zoom ou un recalcul.
 - **Comment lire** : chaque statistique a son explication (case à cocher en bas de la barre latérale pour

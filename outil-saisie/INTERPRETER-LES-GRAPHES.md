@@ -18,7 +18,8 @@ Pour chaque graphe : **ce qu'il montre**, **comment le lire**, **ce qui doit ale
   la saison ; l'année compare les années.
 - **Zoom** (− / +, molette) et **déplacement** (‹ ›, glisser) : pour regarder une période précise (une
   épidémie, une fin d'année). **Tout** revient à toute la période.
-- **Animation** : la courbe se construit jour après jour. Elle aide à voir dans quel ordre les choses arrivent
+- **Animation** : la courbe se construit jour après jour, sur des axes fixes, avec un curseur qui donne la date
+  et les valeurs (vitesse ×1, ×2, ×4 ; Pause ; Rejouer). Elle aide à voir dans quel ordre les choses arrivent
   (les admissions montent avant les présents, une saison se répète).
 - **Survol** : la bulle donne la valeur exacte du jour (ou de la période) sous la souris.
 
