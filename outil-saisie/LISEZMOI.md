@@ -313,6 +313,13 @@ dessinées qu'une fois.
 exactement, sans hypothèse d'heure, entre le plus grand des deux minuits qui encadrent la journée et le comptage
 de la journée.
 
+**Occupation heure par heure** (rubrique Occupation) : les heures d'entrée et de sortie, absentes du registre,
+sont tirées au hasard dans des fenêtres réglables dans la section (même loi pour tout le service). Pour chaque
+jour : occupation attendue à chaque heure avec son intervalle à 95 % (variance binomiale), pic moyen et
+probabilité de surnombre par simulation de Monte-Carlo (100, 300 ou 1 000 tirages, graine fixe 20261021),
+nombre de jours en surnombre attendus avec son intervalle, et les jours les plus à risque. Une mise en
+observation reste la durée « séjour du même jour » du bouton Calcul. Indépendant de la méthode de comptage.
+
 **Capacité variable** : « Lits du service » est la capacité de départ ; « Changements » ajoute les
 changements de capacité, un par ligne ou séparés par « ; » (`01/03/25=20`). Taux, sureffectif, rotation et
 intervalle de rotation utilisent les lits de chaque jour.
@@ -476,7 +483,7 @@ pouls, TA, glycémie et température pour les urgences).
 | `calendrier.js` | Jours fériés et vacances scolaires du Cameroun (`window.CALENDRIER_CM`) ; mêmes dates que `donnees/feries_supplementaires.csv` et `donnees/vacances_scolaires.csv` (vérifié par `tests/test_calendrier.py`) |
 | `statistiques.js` | Bibliothèque statistique écrite à la main (`window.Stat`) : lois, descriptif, tests, régression, séries temporelles, modèles de prévision, métriques |
 | `indicateurs.js` | Onglet 3 : rubriques et statistiques, graphiques SVG dessinés à la main, barre latérale, filtre, fenêtre « Agrandir », infobulles, mise à jour automatique |
-| `occupation-validation.js` | Quatre contrôles de l'occupation ajoutés à la rubrique Occupation : bilan des flux, Monte-Carlo (300 tirages, graine fixe), Kaplan-Meier, file M/G/∞ |
+| `occupation-validation.js` | Contrôles de l'occupation ajoutés à la rubrique Occupation : pic de la journée, occupation heure par heure (heures inconnues : fenêtres réglables, Monte-Carlo du pic), bilan des flux, Monte-Carlo (300 tirages, graine fixe), Kaplan-Meier, file M/G/∞ |
 | `assets/theme.css` | Copie de la feuille de style de l'application NERA (`app/src/styles/theme.css`) : à recopier si le thème de l'application change |
 | `assets/logo-na.png`, `assets/favicon-32.png` | Logo et icône |
 | `convertir_photos.bat` / `.ps1` | Conversion des photos (HEIC → JPEG, sans métadonnées) |

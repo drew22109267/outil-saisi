@@ -147,6 +147,16 @@ basse dépasse les lits = sureffectif **certain** ; où seule la borne haute dé
 *Exemple* : pic moyen entre 10 et 12 enfants pour 8,5 présents à minuit : le service est plus chargé dans la
 journée que la nuit.
 
+**Occupation heure par heure** — le registre ne donne pas les heures : chaque entrée et chaque sortie reçoit une
+heure tirée au hasard dans une fenêtre réglable (sorties 9 h – 13 h, entrées 11 h – 19 h par défaut). En haut,
+jour par jour : bande bleu clair = encadrement du pic **sans hypothèse** ; violet = pic moyen des simulations ;
+orange = présence moyenne de la journée. Au milieu : probabilité que le pic dépasse les lits. En bas : la journée
+choisie heure par heure (courbe = occupation attendue, bande = intervalle à 95 %). *Lecture* : la courbe descend le
+matin (sorties) et remonte l'après-midi (entrées) ; un jour à 100 % dépasse les lits quelle que soit l'heure exacte
+dans les fenêtres. *Exemple* : « jours en surnombre attendus 7,5 [7 ; 9] » = environ 7 à 9 jours où au moins un
+enfant n'a pas eu de lit à lui à un moment de la journée. Changez les fenêtres : si le nombre bouge beaucoup, la
+conclusion dépend de l'organisation des sorties et des entrées (à écrire dans le mémoire).
+
 **Loi de Little et Erlang B** — Little vérifie la cohérence (présents ≈ admissions par jour × durée) : écart
 < 10 % = données cohérentes. Erlang B donne la probabilité de trouver tous les lits pris et le nombre de lits
 pour rester sous 5 % ou 1 %. *Exemple* : charge moyenne 9 → 14 lits suffisent 95 % du temps, mais le mois le

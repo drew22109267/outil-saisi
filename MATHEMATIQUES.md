@@ -152,6 +152,22 @@ Colonnes `pic_bas` et `pic_haut` de `occupation_<SERVICE>.csv` ; rubrique « Pic
 Un jour où même la borne basse dépasse les lits est un sureffectif **certain** ; si seule la borne haute les
 dépasse, il est **possible**.
 
+**Heure par heure, sans heure dans le registre** (section « Occupation heure par heure » de l'outil). Les heures
+d'entrée H_e et de sortie H_s sont aléatoires, de fonctions de répartition F_e et F_s (uniformes sur des fenêtres
+réglables), indépendantes d'un enfant à l'autre. Avec, pour le jour d, les poids des fins possibles (sortie
+calculée : p le jour e + n − 1, 1 − p le jour e + n) : pleins_d (présents toute la journée), A_d (entrées), S_d
+(sorties) et M_d (mises en observation, présentes m heures) :
+
+```
+E[N_d(u)]   = pleins_d + A_d·F_e(u) + S_d·(1 − F_s(u)) + M_d·q(u),     q(u) = F_e(u) − F_e(u − m)
+Var[N_d(u)] = A_d·F_e(1 − F_e) + S_d·F_s(1 − F_s) + M_d·q(1 − q)
+```
+
+E[N_d(0)] = P_{d−1} et E[N_d(24)] = P_d : le profil raccorde les deux recensements de minuit. Moyenne de la
+journée : P_{d−1} − S_d(1 − h̄_s/24) + A_d(1 − h̄_e/24) (+ mises en observation), soit, par la loi de Little,
+L_minuit + λ(h̄_s − h̄_e)/24. Le pic et P(pic > lits) sont estimés par Monte-Carlo (heures tirées pour chaque
+séjour, sortie avant entrée à heure égale). Détail et exemple : guide mathématique (MEMOIRE), chapitre Occupation.
+
 ### 1.2 quinquies Capacité variable
 
 Le service est passé de 15 à 20 lits à une date inconnue, et tous les lits ne sont peut-être pas utilisables.

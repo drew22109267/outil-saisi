@@ -676,7 +676,7 @@ function cadre({ W, H, ml = 56, mr = 14, mt = 12, mb = 40, xmin, xmax, ymin, yma
     ${sansX ? '' : graduations(xmin, xmax, 6).map((g) => `<text x="${x(g)}" y="${H - mb + 16}" text-anchor="${x(g) - ml < 16 ? 'start' : W - mr - x(g) < 16 ? 'end' : 'middle'}" font-size="11" fill="#8a9099">${etiq(g)}</text>`).join('')}
     ${sansX ? '' : graduations(xmin, xmax, 6).map((g) => `<line x1="${x(g)}" x2="${x(g)}" y1="${H - mb}" y2="${H - mb + 4}" stroke="#c9cdd3"/>`).join('')}
     <line x1="${ml}" x2="${W - mr}" y1="${H - mb}" y2="${H - mb}" stroke="#c9cdd3"/>
-    <text x="${(ml + W - mr) / 2}" y="${H - 6}" text-anchor="middle" font-size="11.5" fill="#5a606a">${titreX}</text>
+    <text x="${(ml + W - mr) / 2}" y="${Math.min(H - 6, H - mb + 32)}" text-anchor="middle" font-size="11.5" fill="#5a606a">${titreX}</text>
     <text x="13" y="${(H - mb + mt) / 2}" transform="rotate(-90 13 ${(H - mb + mt) / 2})" text-anchor="middle" font-size="11.5" fill="#5a606a">${titreY}</text>`
   return { x, y, fond }
 }
