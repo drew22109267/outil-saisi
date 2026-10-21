@@ -237,10 +237,13 @@
 
   // ── 6. Occupation heure par heure (modèle probabiliste) ─────────────────────────────────
   // Le registre ne donne que des dates. L'heure de chaque entrée et de chaque sortie est une variable
-  // aléatoire uniforme sur une fenêtre réglable (même loi pour tout le service, heures indépendantes) ;
-  // une mise en observation (entrée et sortie le même jour) reste m heures (réglage « séjour du même jour »).
+  // aléatoire uniforme sur une fenêtre réglable (même loi pour tout le service, heures indépendantes).
+  // Fenêtres par défaut, d'après le service : les ENTRÉES se font à toute heure, 24 h sur 24 (0–24 h) ; les
+  // SORTIES se font de jour, du matin à la tombée de la nuit (8–18 h). Une mise en observation (entrée et sortie
+  // le même jour) reste m heures et doit être sortie avant la fin de la fenêtre des sorties : son arrivée est
+  // uniforme sur [e1, min(e2, s2) − m] (un enfant arrivé le soir ne ressort pas avant le lendemain).
   // Pour le jour d, avec les poids des fins possibles (sortie calculée : p le jour e + n − 1, 1 − p le jour e + n) :
-  //   E[N_d(u)]   = pleins_d + A_d·F_e(u) + S_d·(1 − F_s(u)) + M_d·q(u),   q(u) = F_e(u) − F_e(u − m)
+  //   E[N_d(u)]   = pleins_d + A_d·F_e(u) + S_d·(1 − F_s(u)) + M_d·q(u),   q(u) = F_m(u) − F_m(u − m)
   //   Var[N_d(u)] = A_d·F_e(1 − F_e) + S_d·F_s(1 − F_s) + M_d·q(1 − q)
   // À u = 0 on retrouve le recensement de la nuit précédente, à u = 24 celui de la nuit suivante.
   // Pic de la journée et probabilité de surnombre : simulation de Monte-Carlo séjour par séjour.
@@ -250,13 +253,18 @@
     ? [[s.basse, s.p], [s.sortie, 1 - s.p]].filter((f) => f[1] > 0) : [[s.sortie, 1]])
   function fenetresHoraires(c) {
     const o = c.opts, h = (k, v) => (Number.isFinite(+o[k]) ? +o[k] : (o[k] = v))
-    let [s1, s2, e1, e2] = [h('hhS1', 9), h('hhS2', 13), h('hhE1', 11), h('hhE2', 19)]
+    // Anciennes fenêtres par défaut (sorties 9–13 h, entrées 11–19 h) remplacées une fois par celles du service.
+    if (o.hhVersion !== 2) { if (+o.hhS1 === 9 && +o.hhS2 === 13 && +o.hhE1 === 11 && +o.hhE2 === 19) for (const k of ['hhS1', 'hhS2', 'hhE1', 'hhE2']) delete o[k]; o.hhVersion = 2 }
+    let [s1, s2, e1, e2] = [h('hhS1', 8), h('hhS2', 18), h('hhE1', 0), h('hhE2', 24)]
     if (s2 < s1) [s1, s2] = [s2, s1]; if (e2 < e1) [e1, e2] = [e2, e1]
-    return { s1, s2, e1, e2, m: 24 * (c.d.reglages?.heures?.m ?? 8 / 24) }
+    const m = 24 * (c.d.reglages?.heures?.m ?? 8 / 24)
+    // Arrivée d'une mise en observation : dans la fenêtre des entrées, assez tôt pour sortir avant s2.
+    const m1 = e1, m2 = Math.max(e1, Math.min(e2, s2) - m)
+    return { s1, s2, e1, e2, m, m1, m2 }
   }
   function profilHoraire(c) {
     const d = c.d, deb = d.debutNum, n = d.presents.length, fin = deb + n - 1, f = fenetresHoraires(c)
-    const Fe = repartUnif(f.e1, f.e2), Fs = repartUnif(f.s1, f.s2)
+    const Fe = repartUnif(f.e1, f.e2), Fs = repartUnif(f.s1, f.s2), Fm = repartUnif(f.m1, f.m2)
     const plein = new Float64Array(n + 1), A = new Float64Array(n), S = new Float64Array(n), M = new Float64Array(n)
     for (const s of sejoursExploitables(d)) for (const [j, w] of finsPossibles(s)) {
       if (j === s.entree) { if (j >= deb && j <= fin) M[j - deb] += w; continue }
@@ -266,7 +274,7 @@
       if (b >= a) { plein[a - deb] += w; plein[b - deb + 1] -= w }
     }
     for (let i = 1; i <= n; i++) plein[i] += plein[i - 1]
-    const q = (u) => (u >= 24 ? 0 : Fe(u) - Fe(u - f.m))
+    const q = (u) => (u >= 24 ? 0 : Fm(u) - Fm(u - f.m))
     // Espérance et écart-type à l'heure u du jour i ; moyenne de la journée par la méthode des milieux (pas de 6 min).
     const esperance = (i, u) => plein[i] + A[i] * Fe(u) + S[i] * (1 - Fs(u)) + M[i] * q(u)
     const ecart = (i, u) => Math.sqrt(A[i] * Fe(u) * (1 - Fe(u)) + S[i] * Fs(u) * (1 - Fs(u)) + M[i] * q(u) * (1 - q(u)))
@@ -276,10 +284,10 @@
   let cacheHoraire = null
   function simulerHoraire(c, N) {
     const d = c.d, deb = d.debutNum, n = d.presents.length, fin = deb + n - 1, f = fenetresHoraires(c), lits = c.lits
-    const cle = `${deb}|${n}|${d.sejours?.length}|${d.presents.reduce((a, b) => a + b, 0)}|${lits}|${(d.litsJour ?? []).join(',')}|${N}|${f.s1}|${f.s2}|${f.e1}|${f.e2}|${f.m}`
+    const cle = `${deb}|${n}|${d.sejours?.length}|${d.presents.reduce((a, b) => a + b, 0)}|${lits}|${(d.litsJour ?? []).join(',')}|${N}|${f.s1}|${f.s2}|${f.e1}|${f.e2}|${f.m}|${f.m2}`
     if (cacheHoraire?.cle === cle) return cacheHoraire
     const sej = sejoursExploitables(d).map((s) => ({ e: s.entree, fins: finsPossibles(s) }))
-    const rnd = alea(20261021), ue = () => f.e1 + (f.e2 - f.e1) * rnd(), us = () => f.s1 + (f.s2 - f.s1) * rnd()
+    const rnd = alea(20261021), ue = () => f.e1 + (f.e2 - f.e1) * rnd(), us = () => f.s1 + (f.s2 - f.s1) * rnd(), um = () => f.m1 + (f.m2 - f.m1) * rnd()
     const L = (i) => d.litsJour?.[i] ?? lits
     const picSomme = new Float64Array(n), sur = new Float64Array(n), totaux = [], ev = Array.from({ length: n }, () => [])
     for (let r = 0; r < N; r++) {
@@ -287,7 +295,7 @@
       for (const e of ev) e.length = 0
       for (const s of sej) {
         const j = s.fins.length > 1 && rnd() < s.fins[0][1] ? s.fins[0][0] : s.fins.at(-1)[0]
-        if (j === s.e) { if (j >= deb && j <= fin) { const h = ue(); ev[j - deb].push(h, 1, Math.min(24, h + f.m), -1) } continue }
+        if (j === s.e) { if (j >= deb && j <= fin) { const h = um(); ev[j - deb].push(h, 1, Math.min(24, h + f.m), -1) } continue }
         if (s.e >= deb && s.e <= fin) ev[s.e - deb].push(ue(), 1)
         if (j !== null && j >= deb && j <= fin) { ev[j - deb].push(us(), -1); depart[j - deb]++ }
         const a = Math.max(s.e + 1, deb), b = Math.min(j === null ? fin : j - 1, fin)
@@ -344,7 +352,7 @@
           bandes: [{ nom: 'Intervalle à 95 %', pts: pts.map((p) => [p[0], p[2], p[3]]), couleur: COUL.bleu, opacite: 0.16 }],
           refs: [...(lits ? [{ nom: `${L(j)} lits`, valeur: L(j), couleur: COUL.rouge }] : []), { nom: `borne haute (journée) ${nf(haut[j], 1)}`, valeur: haut[j], couleur: COUL.orange }] })}</div>
         <div style="margin-top:10px">${tableau(['Jour (les plus à risque)', 'Présents la nuit d’avant', 'Sorties', 'Entrées', 'Même jour', 'Pic : borne basse', 'Pic : borne haute', 'Pic moyen', 'P(surnombre)'], tableauJours)}</div>`,
-      lecture: `le registre ne donne que des <b>dates</b> : l’heure de chaque entrée et de chaque sortie est traitée comme une variable <b>aléatoire</b>, répartie uniformément sur les fenêtres choisies en haut (même loi pour tout le service, heures indépendantes ; une mise en observation reste ${nf(f.m, 1)} h, réglage « séjour du même jour » du bouton Calcul). Pour chaque jour, l’<b>occupation attendue</b> à l’heure u vaut : enfants présents toute la journée + entrées × F<sub>e</sub>(u) + sorties × (1 − F<sub>s</sub>(u)) + mises en observation présentes à u ; elle part du recensement de la nuit précédente et arrive à celui de la nuit suivante. L’<b>intervalle à 95 %</b> vient de la variance binomiale (chaque sortant est encore là, chaque entrant déjà arrivé, avec une certaine probabilité). Le <b>pic</b> de chaque journée et la <b>probabilité de surnombre</b> (plus d’enfants que de lits à un moment de la journée) sont estimés en refaisant ${N} fois la journée avec des heures tirées au hasard (sortie avant entrée à heure égale). La bande bleu clair ne dépend d’<b>aucune</b> hypothèse : le pic est toujours entre le plus grand des deux minuits et le nombre d’enfants présents à un moment de la journée ; un surnombre <b>certain</b> dépasse les lits même au minimum, un surnombre <b>possible</b> seulement au maximum. Les fenêtres d’heures viennent du service ou d’un petit relevé (cahier de garde, registre des urgences, reçus de caisse) : refaites le calcul avec plusieurs fenêtres et présentez la fourchette dans le mémoire (méthode détaillée dans le guide mathématique, chapitre Occupation).` }
+      lecture: `le registre ne donne que des <b>dates</b> : l’heure de chaque entrée et de chaque sortie est traitée comme une variable <b>aléatoire</b>, répartie uniformément sur les fenêtres choisies en haut (même loi pour tout le service, heures indépendantes). Par défaut, d’après le service : les <b>entrées se font à toute heure</b> (0–24 h) et les <b>sorties de jour</b>, du matin à la tombée de la nuit (8–18 h). Une mise en observation reste ${nf(f.m, 1)} h (réglage « séjour du même jour » du bouton Calcul) et sort avant ${f.s2} h : elle arrive entre ${f.m1} h et ${nf(f.m2, 1)} h. Conséquence : la nuit, personne ne sort et les entrées continuent ; le matin, avant les premières sorties, les enfants de la nuit sont encore là pendant que de nouveaux arrivent. Le moment le plus chargé est donc en général <b>juste avant les sorties du matin</b> (ou à minuit) : c’est là que le recensement de minuit sous-estime le besoin en lits. Pour chaque jour, l’<b>occupation attendue</b> à l’heure u vaut : enfants présents toute la journée + entrées × F<sub>e</sub>(u) + sorties × (1 − F<sub>s</sub>(u)) + mises en observation présentes à u ; elle part du recensement de la nuit précédente et arrive à celui de la nuit suivante. L’<b>intervalle à 95 %</b> vient de la variance binomiale (chaque sortant est encore là, chaque entrant déjà arrivé, avec une certaine probabilité). Le <b>pic</b> de chaque journée et la <b>probabilité de surnombre</b> (plus d’enfants que de lits à un moment de la journée) sont estimés en refaisant ${N} fois la journée avec des heures tirées au hasard (sortie avant entrée à heure égale). La bande bleu clair ne dépend d’<b>aucune</b> hypothèse : le pic est toujours entre le plus grand des deux minuits et le nombre d’enfants présents à un moment de la journée ; un surnombre <b>certain</b> dépasse les lits même au minimum, un surnombre <b>possible</b> seulement au maximum. Les fenêtres d’heures viennent du service ou d’un petit relevé (cahier de garde, registre des urgences, reçus de caisse) : refaites le calcul avec plusieurs fenêtres et présentez la fourchette dans le mémoire (méthode détaillée dans le guide mathématique, chapitre Occupation).` }
   }
 
   const occ = ONGLETS.find((o) => o.nom === 'Occupation')

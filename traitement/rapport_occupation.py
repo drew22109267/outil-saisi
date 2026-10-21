@@ -93,7 +93,7 @@ def main() -> None:
                    help="minuit : nuits passées (entrée ≤ jour < sortie) ; journee : jour de sortie compris ; "
                         "pondere : fraction de chaque jour où l'enfant est là (heures typiques ci-dessous)")
     p.add_argument("--heure-entree", type=float, default=12.0, help="comptage pondere : heure moyenne d'admission (12)")
-    p.add_argument("--heure-sortie", type=float, default=11.0, help="comptage pondere : heure moyenne de sortie (11)")
+    p.add_argument("--heure-sortie", type=float, default=13.0, help="comptage pondere : heure moyenne de sortie (13 : sorties de jour, 8–18 h)")
     p.add_argument("--duree-meme-jour", type=float, default=8.0, help="comptage pondere : durée (h) d'un séjour du même jour (8)")
     p.add_argument("--seuil-duree", type=float, default=0.9,
                    help="part minimale de durées connues par mois pour reconstituer l'occupation (0,9)")

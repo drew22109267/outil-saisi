@@ -1664,7 +1664,7 @@ function afficherIndicateurs() {
   $('#indLits').value = lits ?? ''
   etat.indMethode ??= {}
   const methode = { ...METHODE_DEFAUT, ...(etat.indMethode[etat.service] ?? {}) }
-  $('#indSeuil').value = String(methode.seuil); $('#indInconnues').value = methode.inconnues; $('#indCensure').value = methode.censure; $('#indComptage').value = methode.comptage ?? 'minuit'; $('#indHEntree').value = methode.heureEntree ?? 12; $('#indHSortie').value = methode.heureSortie ?? 11; $('#indDMeme').value = methode.dureeMemeJour ?? 8; $('#indLitsPeriodes').value = methode.capacites ?? ''
+  $('#indSeuil').value = String(methode.seuil); $('#indInconnues').value = methode.inconnues; $('#indCensure').value = methode.censure; $('#indComptage').value = methode.comptage ?? 'minuit'; $('#indHEntree').value = methode.heureEntree ?? 12; $('#indHSortie').value = methode.heureSortie ?? 13; $('#indDMeme').value = methode.dureeMemeJour ?? 8; $('#indLitsPeriodes').value = methode.capacites ?? ''
   if (typeof resumerCalcul === 'function') resumerCalcul()
   const par = document.querySelector('input[name=indPar]:checked').value
   // « Toutes les méthodes » : les trois séries sont calculées ; chaque rubrique de l'occupation les montre l'une sous l'autre.

@@ -305,8 +305,9 @@ Bouton **Calcul** → **Comptage** :
 | **Pondérée par le temps** | la part du jour passée dans le service : 1 − h_e/24 le jour d'entrée, 1 les jours pleins, h_s/24 le jour de sortie | 3 + (h_s − h_e)/24 | m/24 |
 | **Toutes les méthodes** | les trois graphes l'un sous l'autre, dans chaque rubrique qui en dépend | | |
 
-Heures typiques de la méthode pondérée (même bouton) : entrée 12 h, sortie 11 h, séjour du même jour 8 h, à
-confirmer avec le major. Les rubriques qui ne dépendent pas de la méthode (admissions, flux, durées) ne sont
+Heures typiques de la méthode pondérée (même bouton) : entrée 12 h, sortie 13 h, séjour du même jour 8 h. Elles
+viennent du service : les admissions se font à toute heure (moyenne 12 h) et les sorties de jour, du matin à la
+tombée de la nuit (8–18 h, moyenne 13 h). Les rubriques qui ne dépendent pas de la méthode (admissions, flux, durées) ne sont
 dessinées qu'une fois.
 
 **Pic de la journée** (rubrique Occupation) : le plus grand nombre d'enfants présents en même temps est encadré
@@ -314,7 +315,8 @@ exactement, sans hypothèse d'heure, entre le plus grand des deux minuits qui en
 de la journée.
 
 **Occupation heure par heure** (rubrique Occupation) : les heures d'entrée et de sortie, absentes du registre,
-sont tirées au hasard dans des fenêtres réglables dans la section (même loi pour tout le service). Pour chaque
+sont tirées au hasard dans des fenêtres réglables dans la section (même loi pour tout le service ; par défaut
+entrées 0–24 h, sorties 8–18 h). Pour chaque
 jour : occupation attendue à chaque heure avec son intervalle à 95 % (variance binomiale), pic moyen et
 probabilité de surnombre par simulation de Monte-Carlo (100, 300 ou 1 000 tirages, graine fixe 20261021),
 nombre de jours en surnombre attendus avec son intervalle, et les jours les plus à risque. Une mise en

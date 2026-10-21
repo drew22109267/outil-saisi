@@ -2038,7 +2038,7 @@ const MAX_NUITS = 90                 // au-delà : erreur d'écriture, durée tr
 //              de même prix, sinon de même issue : nera/imputation.py) ;
 //   censure    'fixe' (NERA, 30 jours) ou 'p95' : sans sortie, « encore hospitalisé » seulement si admis depuis moins
 //              de p95 nuits (95 % des séjours sont plus courts) ; au-delà, l'enfant est presque sûrement sorti.
-const METHODE_DEFAUT = { seuil: 0.9, inconnues: 'exclure', censure: 'fixe', comptage: 'minuit', heureEntree: 12, heureSortie: 11, dureeMemeJour: 8 }
+const METHODE_DEFAUT = { seuil: 0.9, inconnues: 'exclure', censure: 'fixe', comptage: 'minuit', heureEntree: 12, heureSortie: 13, dureeMemeJour: 8 }
 // Une date suivie d'un « ? » (doute à la transcription) reste utilisable pour les calculs.
 const lireDateSouple = (v) => lireDate(String(v ?? '').replace(/\s*\?+\s*$/, '').trim())
 function calculerIndicateurs(lits, par, methode = METHODE_DEFAUT) {
@@ -2409,8 +2409,8 @@ else { construireFormulaire(); majSuggestions(); majListePhotos(); sauver(); nou
 </script>
 <script src="calendrier.js?v=1"></script>
 <script src="statistiques.js?v=12"></script>
-<script src="indicateurs.js?v=58"></script>
-<script src="occupation-validation.js?v=9"></script>
+<script src="indicateurs.js?v=59"></script>
+<script src="occupation-validation.js?v=10"></script>
 <script src="temps.js?v=5"></script>
 <script src="legende.js?v=1"></script>
 </body>

@@ -108,12 +108,16 @@ class HeuresPresence:
     """
     Heures typiques (le registre n'en donne aucune), pour le comptage « pondere » : chaque enfant compte la
     fraction de chaque jour où il est réellement là.
-      entree      heure moyenne d'admission (12 h : admissions réparties sur la journée)
-      sortie      heure moyenne de sortie (11 h : sorties après la visite du matin)
+      entree      heure moyenne d'admission (12 h : les admissions se font à toute heure, 24 h sur 24 ;
+                  uniformes sur 0–24 h, leur moyenne est 12 h)
+      sortie      heure moyenne de sortie (13 h : les sorties se font de jour, du matin à la tombée de la
+                  nuit, 8–18 h ; milieu de la fenêtre)
+    La présence d'un jour est linéaire en l'heure d'arrivée et de départ : remplacer les heures inconnues par
+    leur moyenne donne exactement l'occupation MOYENNE attendue (pas le pic : voir la rubrique horaire de l'outil).
       meme_jour   durée moyenne d'un séjour entré et sorti le même jour (MEO, SCAM précoce), en heures
     """
     entree: float = 12.0
-    sortie: float = 11.0
+    sortie: float = 13.0
     meme_jour: float = 8.0
 
 

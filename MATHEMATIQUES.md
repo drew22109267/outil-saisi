@@ -108,8 +108,12 @@ tous les scripts permettent de mener toute l'étude avec l'une ou l'autre série
 ### 1.2 ter Troisième méthode : la présence pondérée par le temps
 
 Option `--comptage pondere` (Python, avec `--heure-entree`, `--heure-sortie`, `--duree-meme-jour`) et
-« Pondérée par le temps » dans l'outil. Le registre ne donne pas les heures ; on suppose des heures typiques
-(à confirmer avec le major) : admission à h_e (12 h), sortie à h_s (11 h), séjour du même jour de m heures (8 h).
+« Pondérée par le temps » dans l'outil. Le registre ne donne pas les heures. D'après le service, les
+**admissions se font à toute heure, 24 h sur 24**, et les **sorties de jour**, du matin à la tombée de la nuit
+(8–18 h). On prend la moyenne de chaque fenêtre : admission à h_e = 12 h, sortie à h_s = 13 h, séjour du même jour
+de m heures (8 h). Comme la présence d'un jour est linéaire en l'heure d'arrivée et de départ, remplacer les heures
+inconnues par leur moyenne donne **exactement** l'occupation moyenne attendue (E[1 − H_e/24] = 1 − E[H_e]/24) ;
+avec des admissions uniformes sur 0–24 h, a = 1/2 sans aucune approximation.
 Avec a = h_e/24, b = h_s/24, μ = m/24, la contribution d'un séjour au jour d est la fraction du jour passée
 dans le service :
 
@@ -133,8 +137,8 @@ même jour ; `verifier_little` utilise cette durée.
 |---|---|
 | Ce qu'elle mesure | le nombre moyen de lits occupés sur 24 h (l'occupation réelle, si les heures sont justes) |
 | Mises en observation | comptées pour leur durée (μ) |
-| Rotation dans la journée | un lit libéré à 11 h et réoccupé à 12 h compte b + (1 − a) ≈ 0,96, pas 2 |
-| Limite | dépend des heures supposées : si les sorties ont lieu à 15 h au lieu de 11 h, chaque séjour gagne 1/6 de jour ; le banc P8 et les options `--heure-*` mesurent cette sensibilité |
+| Rotation dans la journée | un lit libéré à 11 h et réoccupé à 12 h compte 11/24 + 12/24 ≈ 0,96, pas 2 |
+| Limite | dépend des heures supposées : si les sorties ont lieu en moyenne à 10 h au lieu de 13 h, chaque séjour perd 1/8 de jour ; le banc P8 et les options `--heure-*` mesurent cette sensibilité |
 
 ### 1.2 quater Le pic de la journée : un encadrement exact
 
@@ -154,12 +158,14 @@ dépasse, il est **possible**.
 
 **Heure par heure, sans heure dans le registre** (section « Occupation heure par heure » de l'outil). Les heures
 d'entrée H_e et de sortie H_s sont aléatoires, de fonctions de répartition F_e et F_s (uniformes sur des fenêtres
-réglables), indépendantes d'un enfant à l'autre. Avec, pour le jour d, les poids des fins possibles (sortie
+réglables), indépendantes d'un enfant à l'autre. Fenêtres par défaut, d'après le service : entrées sur 0–24 h
+(à toute heure), sorties sur 8–18 h (de jour). Une mise en observation sort le jour même, donc avant la fin de la
+fenêtre des sorties s₂ : son arrivée est uniforme sur [e₁, min(e₂, s₂) − m], de répartition F_m. Avec, pour le jour d, les poids des fins possibles (sortie
 calculée : p le jour e + n − 1, 1 − p le jour e + n) : pleins_d (présents toute la journée), A_d (entrées), S_d
 (sorties) et M_d (mises en observation, présentes m heures) :
 
 ```
-E[N_d(u)]   = pleins_d + A_d·F_e(u) + S_d·(1 − F_s(u)) + M_d·q(u),     q(u) = F_e(u) − F_e(u − m)
+E[N_d(u)]   = pleins_d + A_d·F_e(u) + S_d·(1 − F_s(u)) + M_d·q(u),     q(u) = F_m(u) − F_m(u − m)
 Var[N_d(u)] = A_d·F_e(1 − F_e) + S_d·F_s(1 − F_s) + M_d·q(1 − q)
 ```
 
@@ -167,6 +173,18 @@ E[N_d(0)] = P_{d−1} et E[N_d(24)] = P_d : le profil raccorde les deux recensem
 journée : P_{d−1} − S_d(1 − h̄_s/24) + A_d(1 − h̄_e/24) (+ mises en observation), soit, par la loi de Little,
 L_minuit + λ(h̄_s − h̄_e)/24. Le pic et P(pic > lits) sont estimés par Monte-Carlo (heures tirées pour chaque
 séjour, sortie avant entrée à heure égale). Détail et exemple : guide mathématique (MEMOIRE), chapitre Occupation.
+
+**Où est le moment le plus chargé ?** Avec ces fenêtres, l'occupation attendue monte de minuit à 8 h (entrées,
+aucune sortie), varie linéairement de 8 h à 18 h (entrées et sorties), puis remonte jusqu'à minuit (entrées seules).
+Une fonction linéaire par morceaux atteint son maximum à une extrémité : le maximum attendu de la journée est
+
+```
+max( P_{d−1} + A_d·s₁/24 ,  P_d )        (à 8 h, avant les premières sorties ; ou à minuit)
+```
+
+Le matin, les enfants de la nuit sont encore tous là pendant que de nouveaux arrivent : le recensement de minuit
+sous-estime alors le besoin en lits d'environ A_d·s₁/24 (un tiers des admissions du jour avec s₁ = 8 h). C'est
+pourquoi le pic, et non la moyenne, sert à dimensionner.
 
 ### 1.2 quinquies Capacité variable
 

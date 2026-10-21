@@ -331,7 +331,7 @@ scénarios de capacité. Écrit dans `resultats/` : `occupation_<SERVICE>.csv` (
 | Option | Effet |
 |---|---|
 | `--comptage minuit\|journee\|pondere` | méthode de comptage des présents (fichiers suffixés `_journee`, `_pondere`) |
-| `--heure-entree 12 --heure-sortie 11 --duree-meme-jour 8` | heures typiques de la méthode pondérée |
+| `--heure-entree 12 --heure-sortie 13 --duree-meme-jour 8` | heures moyennes de la méthode pondérée (entrées à toute heure, sorties de jour 8–18 h) |
 | `--lits 20` ou `--lits-fichier donnees/lits_PED.csv` | capacité fixe, ou variable (`date_debut;lits`) |
 | `--scenarios-lits 15 16 … 20` | taux pour chaque capacité, tant que la date du passage de 15 à 20 lits est inconnue |
 | `--inconnues exclure\|mediane\|estimee` | traitement des durées inconnues |
