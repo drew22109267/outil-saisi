@@ -1961,6 +1961,22 @@ for (const [id, cle, conv] of [['#indSeuil', 'seuil', Number], ['#indInconnues',
   $(id).addEventListener('change', (e) => { etat.indMethode ??= {}; etat.indMethode[etat.service] = { ...(etat.indMethode[etat.service] ?? {}), [cle]: conv(e.target.value) }; sauver(); afficherIndicateurs() })
 }
 document.querySelectorAll('input[name=indPar]').forEach((r) => r.addEventListener('change', afficherIndicateurs))
+// Bouton « Réglages par défaut » (menu Calcul) : remet les HYPOTHÈSES du calcul (part de durées connues, durées
+// inconnues, censure, méthode de comptage, heures de la méthode pondérée) à leurs valeurs par défaut. Les lits du
+// service et les changements de capacité sont des faits : ils sont gardés.
+{
+  const b = Object.assign(document.createElement('button'), { type: 'button', className: 'btn btn-sm', id: 'indDefaut', textContent: 'Réglages par défaut',
+    title: 'Remettre les réglages du calcul par défaut (90 %, durées inconnues exclues, 30 jours, recensement de minuit, heures 12 h, 13 h, 8 h). Les lits et les changements de capacité sont gardés.' })
+  b.style.marginTop = '8px'
+  $('#popCalcul')?.appendChild(b)
+  b.addEventListener('click', () => {
+    etat.indMethode ??= {}
+    const m = etat.indMethode[etat.service] ?? {}
+    etat.indMethode[etat.service] = m.capacites ? { capacites: m.capacites } : {}
+    sauver(); const z = $('#indZone'), haut = z.scrollTop; afficherIndicateurs(); z.scrollTop = haut
+    if (typeof message === 'function') message('Réglages du calcul remis par défaut (lits et changements de capacité gardés).')
+  })
+}
 // Mise à jour automatique : toute sauvegarde qui change les lignes (ajout, correction, import, suppression)
 // relance le calcul si l'onglet est affiché ; sinon il sera recalculé à son ouverture.
 {

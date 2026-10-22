@@ -187,3 +187,12 @@ window.REGISTRES = {
     ]
   }
 }
+
+// Médecine femme (registre d'hospitalisation, août 2025 → octobre 2026) : mêmes colonnes que la pédiatrie.
+// Seule l'aide de l'âge change (adultes). À compléter si une colonne diffère sur les photos.
+window.REGISTRES.MEDF = {
+  ...window.REGISTRES.PED,
+  nom: 'Médecine femme',
+  colonnes: window.REGISTRES.PED.colonnes.map((c) => (c.k === 'age'
+    ? { ...c, aide: 'Avec l’unité si elle est écrite : 35 ans. Un nombre seul est en années.' } : c)),
+}

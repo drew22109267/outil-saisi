@@ -334,6 +334,7 @@
     const pts = heures.map((u) => { const e = P.esperance(j, u), s = P.ecart(j, u); return [u, e, Math.max(0, e - 1.96 * s), e + 1.96 * s] })
     const h24 = Array.from({ length: 25 }, (_, u) => [u, `${u} h`])
     const options = `${libelle('Sorties entre', choix('hhS1', f.s1, h24))}${libelle('et', choix('hhS2', f.s2, h24))}${libelle('Entrées entre', choix('hhE1', f.e1, h24))}${libelle('et', choix('hhE2', f.e2, h24))}
+      <button type="button" class="btn btn-sm" data-hh-defaut title="Entrées 0–24 h, sorties 8–18 h, 300 tirages, jour le plus à risque">Fenêtres par défaut</button>
       ${libelle('Tirages', choix('hhN', N, [[100, '100 (rapide)'], [300, '300'], [1000, '1 000 (précis)']]))}${libelle('Jour détaillé', choix('hhJour', j, [...new Set([j, ...rang.slice(0, 40)])].sort((a, b) => a - b).map((i) => [i, `${fmtDate(versDate(P.deb + i))}${lits ? ` · ${nf(100 * R.pSur[i], 0)} %` : ''}`])))}`
     const ic = (q) => R.totaux[Math.floor(q * (R.totaux.length - 1))]
     const certains = lits ? jours.filter((i) => bas[i] > L(i)).length : 0, possibles = lits ? jours.filter((i) => haut[i] > L(i)).length : 0
@@ -355,6 +356,14 @@
         <div style="margin-top:10px">${tableau(['Jour (les plus à risque)', 'Présents la nuit d’avant', 'Sorties', 'Entrées', 'Même jour', 'Pic : borne basse', 'Pic : borne haute', 'Pic moyen', 'P(surnombre)'], tableauJours)}</div>`,
       lecture: `le registre ne donne que des <b>dates</b> : l’heure de chaque entrée et de chaque sortie est traitée comme une variable <b>aléatoire</b>, répartie uniformément sur les fenêtres choisies en haut (même loi pour tout le service, heures indépendantes). Par défaut, d’après le service : les <b>entrées se font à toute heure</b> (0–24 h) et les <b>sorties de jour</b>, du matin à la tombée de la nuit (8–18 h). Une mise en observation arrive elle aussi à toute heure (entre ${f.m1} h et ${f.m2} h) et reste ${nf(f.m, 1)} h (réglage « séjour du même jour » du bouton Calcul), sans attendre la fenêtre des sorties. Conséquence : la nuit, personne ne sort et les entrées continuent ; le matin, avant les premières sorties, les enfants de la nuit sont encore là pendant que de nouveaux arrivent. Le moment le plus chargé est donc en général <b>juste avant les sorties du matin</b> (ou à minuit) : c’est là que le recensement de minuit sous-estime le besoin en lits. Pour chaque jour, l’<b>occupation attendue</b> à l’heure u vaut : enfants présents toute la journée + entrées × F<sub>e</sub>(u) + sorties × (1 − F<sub>s</sub>(u)) + mises en observation présentes à u ; elle part du recensement de la nuit précédente et arrive à celui de la nuit suivante. L’<b>intervalle à 95 %</b> vient de la variance binomiale (chaque sortant est encore là, chaque entrant déjà arrivé, avec une certaine probabilité). Le <b>pic</b> de chaque journée et la <b>probabilité de surnombre</b> (plus d’enfants que de lits à un moment de la journée) sont estimés en refaisant ${N} fois la journée avec des heures tirées au hasard (sortie avant entrée à heure égale). La bande bleu clair ne dépend d’<b>aucune</b> hypothèse : le pic est toujours entre le plus grand des deux minuits et le nombre d’enfants présents à un moment de la journée ; un surnombre <b>certain</b> dépasse les lits même au minimum, un surnombre <b>possible</b> seulement au maximum. Les fenêtres d’heures viennent du service ou d’un petit relevé (cahier de garde, registre des urgences, reçus de caisse) : refaites le calcul avec plusieurs fenêtres et présentez la fourchette dans le mémoire (méthode détaillée dans le guide mathématique, chapitre Occupation).` }
   }
+
+  // Bouton « Fenêtres par défaut » : revient aux heures du service (entrées 0–24 h, sorties 8–18 h).
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest?.('[data-hh-defaut]')) return
+    const o = etat.indOptions?.[etat.service]; if (!o) return
+    for (const k of ['hhS1', 'hhS2', 'hhE1', 'hhE2', 'hhN', 'hhJour']) delete o[k]
+    sauver(); redessinerSurPlace()
+  })
 
   const occ = ONGLETS.find((o) => o.nom === 'Occupation')
   occ.sections.push(
