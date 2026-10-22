@@ -159,8 +159,9 @@ dépasse, il est **possible**.
 **Heure par heure, sans heure dans le registre** (section « Occupation heure par heure » de l'outil). Les heures
 d'entrée H_e et de sortie H_s sont aléatoires, de fonctions de répartition F_e et F_s (uniformes sur des fenêtres
 réglables), indépendantes d'un enfant à l'autre. Fenêtres par défaut, d'après le service : entrées sur 0–24 h
-(à toute heure), sorties sur 8–18 h (de jour). Une mise en observation sort le jour même, donc avant la fin de la
-fenêtre des sorties s₂ : son arrivée est uniforme sur [e₁, min(e₂, s₂) − m], de répartition F_m. Avec, pour le jour d, les poids des fins possibles (sortie
+(à toute heure), sorties sur 8–18 h (de jour). Une mise en observation arrive, comme les autres entrées, à toute heure
+(répartition F_m = F_e) et reste m heures, sans suivre la fenêtre des sorties ; arrivée tard, elle est comptée
+jusqu'à minuit au plus, puisque le registre la date du même jour. Avec, pour le jour d, les poids des fins possibles (sortie
 calculée : p le jour e + n − 1, 1 − p le jour e + n) : pleins_d (présents toute la journée), A_d (entrées), S_d
 (sorties) et M_d (mises en observation, présentes m heures) :
 
