@@ -221,7 +221,10 @@ au-delà, la saisie est à reprendre. Le contrôle se fait en plusieurs séances
 └────────────────────┴──────────────────────────────────────────────────────────────────────────┘
 ```
 
-- **Barre latérale** : les rubriques. En haut, le nombre de lignes et l'heure du dernier calcul
+- **Barre latérale** : sous « Indicateurs », la rubrique en cours ; survolez ou cliquez pour ouvrir le **menu
+  des rubriques**, qui s'affiche à droite de la barre (Échap ou un clic ailleurs le ferme).
+- **Synthèse** : chaque chiffre est une carte avec son petit graphique (évolution par période, répartition,
+  jauge) ; survolez une barre ou un point pour sa valeur exacte. En haut, le nombre de lignes et l'heure du dernier calcul
   (« +3 depuis la dernière fois »).
 - **Filtre « Statistique »** (en haut) : « Toutes » (les statistiques de la rubrique les unes sous les autres)
   ou une seule ; flèches ‹ › pour passer à la précédente ou à la suivante.

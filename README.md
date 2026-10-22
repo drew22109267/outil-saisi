@@ -55,6 +55,8 @@ outil-saisi/
 │   ├── indicateurs.js            rubriques et graphes de l'onglet Indicateurs
 │   ├── occupation-validation.js  bilan des flux, Monte-Carlo, Kaplan-Meier, file M/G/∞, pic de la journée
 │   ├── temps.js, legende.js      zoom, regroupement, animation ; légendes cliquables
+│   ├── synthese.js               cartes de chiffres avec leur graphique, style des rubriques
+│   ├── menu-indicateurs.js       menu flottant des rubriques (la barre latérale ne défile plus)
 │   ├── calendrier.js             jours fériés et vacances scolaires camerounais
 │   ├── convertir_photos.bat      conversion des photos (HEIC → JPEG, sans métadonnées)
 │   ├── LISEZMOI.md               mode d'emploi détaillé
