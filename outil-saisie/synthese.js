@@ -21,7 +21,7 @@
   #btnCalcul span { min-width: 0; }
   /* Écran plus étroit : Calcul et Affichage en icône seule (libellé au survol), pour garder une seule ligne */
   @media (max-width: 1180px) {
-    #btnCalcul > span, #btnAffichage > span { display: none; }
+    #btnCalcul > span { display: none; }
     .ind-pop-btn { padding: 0 11px; }
     .ind-tete .seg-opt { padding: 0 10px; }
     .ind-filtre > .ind-filtre-k { display: none; }
@@ -44,6 +44,13 @@
   .ind-par { display: none !important; }
   .ind-pop-btn { height: 40px; padding: 0 14px; border-radius: 12px; color: var(--ink); border-color: var(--line-strong); }
   .ind-pop-btn:hover, .ind-pop-btn[aria-expanded=true] { background: var(--surface-2); border-color: var(--line-strong); }
+  /* Bouton Affichage dans la barre du haut, à côté du service (même hauteur que le choix du service) */
+  @media (min-width: 701px) { .topbar { flex-wrap: nowrap; } }
+  .topbar .compteur { white-space: nowrap; }
+  .topbar .topbar-ind { min-width: 0; }
+  .topbar .ind-pop-zone.affichage-haut[hidden] { display: none !important; }
+  .topbar .ind-pop-zone.affichage-haut .ind-pop-btn { height: 36px; border-radius: 10px; }
+  .topbar .ind-pop-zone.affichage-haut .ind-pop { min-width: 300px; }
   .ind-section { background: var(--surface); border: 1px solid var(--line-strong); border-radius: 16px; padding: 18px 20px 20px; margin-bottom: 16px; }
   .ind-section:last-child { margin-bottom: 4px; border-bottom: 1px solid var(--line-strong); }
   #indModalCorps .ind-section { border: 0; padding: 0; }
@@ -94,6 +101,15 @@
   if (resume && btnCalcul) {
     const majTitre = () => { btnCalcul.title = `Réglages du calcul de l’occupation : ${resume.textContent}` }
     new MutationObserver(majTitre).observe(resume, { childList: true, characterData: true, subtree: true }); majTitre()
+  }
+  // Bouton Affichage (explications « Comment lire », vues 3D) : dans la barre du haut, à gauche du choix du
+  // service, visible seulement sur l'onglet Indicateurs (comme le titre de la rubrique).
+  const zoneAff = document.getElementById('btnAffichage')?.closest('.ind-pop-zone'), titreInd = document.getElementById('topbarInd')
+  const service = document.querySelector('.topbar .field')
+  if (zoneAff && titreInd && service) {
+    zoneAff.classList.add('affichage-haut'); service.before(zoneAff)
+    const suivre = () => { zoneAff.hidden = titreInd.hidden }
+    new MutationObserver(suivre).observe(titreInd, { attributes: true, attributeFilter: ['hidden'] }); suivre()
   }
   // Sélecteur de période : libellés courts (« Jour », « Semaine »…), précédés de « Par ».
   for (const o of document.querySelectorAll('.ind-tete .seg-opt')) {
