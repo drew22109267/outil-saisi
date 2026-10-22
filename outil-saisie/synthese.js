@@ -14,7 +14,19 @@
   #indZone { padding: 4px 2px 8px; }
   .topbar-ind #indPeriode { display: none !important; }
   /* Barre de filtres : des pilules de même hauteur, bord gris, coins arrondis, texte noir */
-  .ind-tete-droite { gap: 10px; }
+  .ind-tete { justify-content: flex-start !important; }
+  .ind-tete-droite { flex: 1 1 auto; justify-content: flex-start !important; align-items: center; flex-wrap: wrap; gap: 10px 10px; }
+  .ind-tete-droite > .ind-pop-zone { display: inline-flex; align-items: center; }
+  #btnCalcul { max-width: 240px; }
+  #btnCalcul span { min-width: 0; }
+  /* Écran plus étroit : Calcul et Affichage en icône seule (libellé au survol), pour garder une seule ligne */
+  @media (max-width: 1180px) {
+    #btnCalcul > span, #btnAffichage > span { display: none; }
+    .ind-pop-btn { padding: 0 11px; }
+    .ind-tete .seg-opt { padding: 0 10px; }
+    .ind-filtre > .ind-filtre-k { display: none; }
+    .ind-tete-droite, .ind-filtre { gap: 8px; }
+  }
   .ind-filtre { display: inline-flex; align-items: center; gap: 10px; }
   .ind-filtre-k { font-size: 13px; font-weight: 600; color: var(--muted); }
   .ind-filtre-groupe { height: 40px; padding: 3px; gap: 2px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 12px; }
@@ -77,6 +89,12 @@
   @media (max-width: 680px) { .cartes { grid-template-columns: minmax(0, 1fr); } .carte.l2, .carte.l4 { grid-column: auto; } }
   `
   document.head.appendChild(Object.assign(document.createElement('style'), { textContent: css }))
+  // Bouton Calcul raccourci (points de suspension) : le résumé complet reste dans l'info-bulle.
+  const resume = document.getElementById('resumeCalcul'), btnCalcul = document.getElementById('btnCalcul')
+  if (resume && btnCalcul) {
+    const majTitre = () => { btnCalcul.title = `Réglages du calcul de l’occupation : ${resume.textContent}` }
+    new MutationObserver(majTitre).observe(resume, { childList: true, characterData: true, subtree: true }); majTitre()
+  }
   // Sélecteur de période : libellés courts (« Jour », « Semaine »…), précédés de « Par ».
   for (const o of document.querySelectorAll('.ind-tete .seg-opt')) {
     const t = [...o.childNodes].find((n) => n.nodeType === 3 && n.textContent.trim())
