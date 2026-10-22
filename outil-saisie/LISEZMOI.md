@@ -305,9 +305,10 @@ Bouton **Calcul** → **Comptage** :
 | **Pondérée par le temps** | la part du jour passée dans le service : 1 − h_e/24 le jour d'entrée, 1 les jours pleins, h_s/24 le jour de sortie | 3 + (h_s − h_e)/24 | m/24 |
 | **Toutes les méthodes** | les trois graphes l'un sous l'autre, dans chaque rubrique qui en dépend | | |
 
-Le bouton **Réglages par défaut** (en bas du menu Calcul) remet toutes ces hypothèses à leur valeur de départ
-(90 %, durées inconnues exclues, 30 jours, recensement de minuit, heures 12 h, 13 h et 8 h) ; les lits et les
-changements de capacité, qui sont des faits, sont gardés.
+Le bouton **Réglages par défaut** (en bas du menu Calcul) remet **toutes** les hypothèses à leur valeur de départ :
+celles du calcul (90 %, durées inconnues exclues, 30 jours, recensement de minuit, heures 12 h, 13 h et 8 h) et celles
+des simulations (occupation heure par heure : entrées 0–24 h, sorties 8–18 h, jour le plus à risque ; 300 tirages
+pour les simulations de Monte-Carlo). Les lits et les changements de capacité, qui sont des faits, sont gardés.
 
 Heures typiques de la méthode pondérée (même bouton) : entrée 12 h, sortie 13 h, séjour du même jour 8 h. Elles
 viennent du service : les admissions se font à toute heure (moyenne 12 h) et les sorties de jour, du matin à la
