@@ -8,6 +8,30 @@
 (function () {
   // ── Style ─────────────────────────────────────────────────────────────────────────────
   const css = `
+  /* Un seul fond, blanc, comme une page : plus de plateau gris autour du panneau blanc */
+  .main, .vue { background: var(--surface) !important; }
+  .ind-panneau { background: none !important; border: 0 !important; box-shadow: none !important; }
+  #indZone { padding: 4px 2px 8px; }
+  .topbar-ind #indPeriode { display: none !important; }
+  /* Barre de filtres : des pilules de même hauteur, bord gris, coins arrondis, texte noir */
+  .ind-tete-droite { gap: 10px; }
+  .ind-filtre { display: inline-flex; align-items: center; gap: 10px; }
+  .ind-filtre-k { font-size: 13px; font-weight: 600; color: var(--muted); }
+  .ind-filtre-groupe { height: 40px; padding: 3px; gap: 2px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 12px; }
+  .ind-fleche { width: 30px; border-radius: 9px; color: var(--ink); }
+  .ind-fleche:hover:not(:disabled) { background: var(--surface-2); color: var(--ink); }
+  .ind-menu-btn { border-radius: 9px; box-shadow: none; background: none; color: var(--ink); padding: 4px 10px; }
+  .ind-menu-btn:hover, .ind-menu-btn[aria-expanded=true] { background: var(--surface-2); }
+  .ind-filtre .nb { border-radius: 999px; padding: 1px 7px; background: var(--brand); }
+  .ind-menu-liste, .ind-pop { border-radius: 14px; border: 1px solid var(--line-strong); }
+  .ind-tete .ind-tete-droite .seg[hidden] { display: inline-flex; }
+  .ind-tete .seg { height: 40px; align-items: stretch; padding: 3px; gap: 2px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 12px; }
+  .ind-tete .seg-opt { padding: 0 14px; font-size: 13px; border-radius: 9px; color: var(--muted); }
+  .ind-tete .seg-opt:has(input:checked) { background: var(--noir); color: #fff; box-shadow: none; }
+  .ind-tete .seg-opt:has(input:focus-visible) { outline: 2px solid var(--brand); outline-offset: 1px; }
+  .ind-par { display: none !important; }
+  .ind-pop-btn { height: 40px; padding: 0 14px; border-radius: 12px; color: var(--ink); border-color: var(--line-strong); }
+  .ind-pop-btn:hover, .ind-pop-btn[aria-expanded=true] { background: var(--surface-2); border-color: var(--line-strong); }
   .ind-section { background: var(--surface); border: 1px solid var(--line-strong); border-radius: 16px; padding: 18px 20px 20px; margin-bottom: 16px; }
   .ind-section:last-child { margin-bottom: 4px; border-bottom: 1px solid var(--line-strong); }
   #indModalCorps .ind-section { border: 0; padding: 0; }
@@ -53,6 +77,13 @@
   @media (max-width: 680px) { .cartes { grid-template-columns: minmax(0, 1fr); } .carte.l2, .carte.l4 { grid-column: auto; } }
   `
   document.head.appendChild(Object.assign(document.createElement('style'), { textContent: css }))
+  // Sélecteur de période : libellés courts (« Jour », « Semaine »…), précédés de « Par ».
+  for (const o of document.querySelectorAll('.ind-tete .seg-opt')) {
+    const t = [...o.childNodes].find((n) => n.nodeType === 3 && n.textContent.trim())
+    if (t) t.textContent = t.textContent.trim().replace(/^Par\s+/, '').replace(/^./, (c) => c.toUpperCase())
+  }
+  const seg = document.querySelector('.ind-tete .seg')
+  if (seg && !seg.previousElementSibling?.classList.contains('ind-filtre-k')) seg.before(Object.assign(document.createElement('span'), { className: 'ind-filtre-k', textContent: 'Par' }))
 
   // ── Icônes (traits, couleur du texte) ─────────────────────────────────────────────────
   const I = (d) => `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`

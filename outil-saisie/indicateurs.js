@@ -1677,8 +1677,7 @@ function afficherIndicateurs() {
   const avant = nbLignesMaj; nbLignesMaj = st.n; derniereMaj = new Date(); signatureIndicateurs = signatureSaisie()
   cacheIndicateurs.ajout = avant === null || serviceMaj !== etat.service ? null : st.n - avant
   serviceMaj = etat.service
-  $('#indPeriode').textContent = d.premierSaisi ? `saisie du ${fmtDate(d.premierSaisi)} au ${fmtDate(d.dernierSaisi)}${d.debut ? ` · occupation calculée du ${fmtDate(d.debut)} au ${fmtDate(d.fin)}` : ''}` : ''
-  $('#indPeriode').textContent += ` · à jour à ${derniereMaj.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`
+  $('#indPeriode').textContent = ''                     // période et heure : affichées dans la Synthèse, pas dans l'en-tête
   $('#indPeriode').title = $('#indPeriode').textContent
   dessinerVue()
 }
