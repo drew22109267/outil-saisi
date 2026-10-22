@@ -23,7 +23,6 @@
   @media (max-width: 1180px) {
     #btnCalcul > span { display: none; }
     .ind-pop-btn { padding: 0 11px; }
-    .ind-tete .seg-opt { padding: 0 10px; }
     .ind-filtre > .ind-filtre-k { display: none; }
     .ind-tete-droite, .ind-filtre { gap: 8px; }
   }
@@ -37,10 +36,17 @@
   .ind-filtre .nb { border-radius: 999px; padding: 1px 7px; background: var(--brand); }
   .ind-menu-liste, .ind-pop { border-radius: 14px; border: 1px solid var(--line-strong); }
   .ind-tete .ind-tete-droite .seg[hidden] { display: inline-flex; }
-  .ind-tete .seg { height: 40px; align-items: stretch; padding: 3px; gap: 2px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 12px; }
-  .ind-tete .seg-opt { padding: 0 14px; font-size: 13px; border-radius: 9px; color: var(--muted); }
-  .ind-tete .seg-opt:has(input:checked) { background: var(--noir); color: #fff; box-shadow: none; }
-  .ind-tete .seg-opt:has(input:focus-visible) { outline: 2px solid var(--brand); outline-offset: 1px; }
+  /* « Par mois » : bouton à chevron qui ouvre un panneau Jour · Semaine · Mois · Année */
+  .ind-par-zone .ind-pop { min-width: 200px; padding: 8px; gap: 2px; }
+  .ind-par-zone .seg, .ind-par-zone .seg[hidden] { display: flex !important; flex-direction: column; gap: 2px; padding: 0; height: auto; border: 0; background: none; }
+  .ind-par-zone .seg-opt { position: relative; display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; font-size: 13.5px; font-weight: 500;
+    color: var(--ink); border-radius: 9px; background: none; box-shadow: none; }
+  .ind-par-zone .seg-opt:hover { background: var(--surface-2); }
+  .ind-par-zone .seg-opt:has(input:checked) { background: var(--noir-soft); color: var(--noir); font-weight: 650; box-shadow: none; }
+  .ind-par-zone .seg-opt:has(input:checked)::after { content: ""; width: 14px; height: 14px; flex: none;
+    background: currentColor; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12.5 4.5 4.5L19 7.5'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12.5 4.5 4.5L19 7.5'/%3E%3C/svg%3E") center / contain no-repeat; }
+  .ind-par-zone .seg-opt:has(input:focus-visible) { outline: 2px solid var(--brand); outline-offset: -2px; }
   .ind-par { display: none !important; }
   .ind-pop-btn { height: 40px; padding: 0 14px; border-radius: 12px; color: var(--ink); border-color: var(--line-strong); }
   .ind-pop-btn:hover, .ind-pop-btn[aria-expanded=true] { background: var(--surface-2); border-color: var(--line-strong); }
@@ -91,6 +97,22 @@
   .carte-legende { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); margin-top: 8px; }
   .carte-legende i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
   .carte-legende b { color: var(--ink); font-weight: 650; margin-left: 3px; }
+  .carte-agrandir { margin-left: auto; display: inline-grid; place-items: center; width: 28px; height: 28px; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--surface); color: var(--muted); cursor: pointer; opacity: .75; }
+  .carte:hover .carte-agrandir, .carte-agrandir:focus-visible { opacity: 1; }
+  .carte-agrandir:hover { background: var(--surface-2); color: var(--ink); }
+  .carte-graphe[data-carte-grand] { cursor: zoom-in; }
+  .carte-modal { position: fixed; inset: 0; z-index: 400; display: grid; place-items: center; padding: 24px; background: rgba(15, 18, 25, .45); }
+  .carte-modal[hidden] { display: none; }
+  .carte-modal-panneau { width: min(1180px, 100%); max-height: 100%; overflow: auto; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 18px;
+    box-shadow: 0 24px 60px rgba(15, 18, 25, .25); padding: 18px 22px 22px; }
+  .carte-modal-tete { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 6px; }
+  .carte-modal-tete h3 { margin: 0; font-size: 18px; font-weight: 650; letter-spacing: -0.01em; }
+  .carte-modal-tete p { margin: 3px 0 0; font-size: 13px; color: var(--muted); }
+  .carte-modal-tete button { margin-left: auto; height: 36px; padding: 0 14px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface);
+    font: inherit; font-size: 13px; font-weight: 600; color: var(--ink); cursor: pointer; }
+  .carte-modal-tete button:hover { background: var(--surface-2); }
+  .carte-modal-corps svg { display: block; max-width: 100%; height: auto; }
   .carte.l2 { grid-column: span 2; } .carte.l4 { grid-column: span 4; }
   @media (max-width: 1240px) { .cartes { grid-template-columns: repeat(2, minmax(0, 1fr)); } .carte.l4 { grid-column: span 2; } }
   @media (max-width: 680px) { .cartes { grid-template-columns: minmax(0, 1fr); } .carte.l2, .carte.l4 { grid-column: auto; } }
@@ -111,13 +133,37 @@
     const suivre = () => { zoneAff.hidden = titreInd.hidden }
     new MutationObserver(suivre).observe(titreInd, { attributes: true, attributeFilter: ['hidden'] }); suivre()
   }
-  // Sélecteur de période : libellés courts (« Jour », « Semaine »…), précédés de « Par ».
-  for (const o of document.querySelectorAll('.ind-tete .seg-opt')) {
-    const t = [...o.childNodes].find((n) => n.nodeType === 3 && n.textContent.trim())
-    if (t) t.textContent = t.textContent.trim().replace(/^Par\s+/, '').replace(/^./, (c) => c.toUpperCase())
-  }
+  // Regroupement par période : un bouton « Par mois » à chevron, qui ouvre un panneau Jour · Semaine · Mois · Année
+  // (les boutons radio d'origine, déplacés dans le panneau : le calcul les lit comme avant).
   const seg = document.querySelector('.ind-tete .seg')
-  if (seg && !seg.previousElementSibling?.classList.contains('ind-filtre-k')) seg.before(Object.assign(document.createElement('span'), { className: 'ind-filtre-k', textContent: 'Par' }))
+  if (seg) {
+    for (const o of seg.querySelectorAll('.seg-opt')) {
+      const t = [...o.childNodes].find((n) => n.nodeType === 3 && n.textContent.trim())
+      if (t) t.textContent = t.textContent.trim().replace(/^Par\s+/, '').replace(/^./, (c) => c.toUpperCase())
+    }
+    const zone = Object.assign(document.createElement('div'), { className: 'ind-pop-zone ind-par-zone' })
+    const btn = Object.assign(document.createElement('button'), { type: 'button', className: 'ind-pop-btn', id: 'btnPar', title: 'Regrouper les indicateurs par jour, semaine, mois ou année' })
+    btn.setAttribute('aria-haspopup', 'dialog'); btn.setAttribute('aria-expanded', 'false')
+    const pop = Object.assign(document.createElement('div'), { className: 'ind-pop', hidden: true })
+    pop.setAttribute('role', 'dialog'); pop.setAttribute('aria-label', 'Regrouper par')
+    pop.append(Object.assign(document.createElement('div'), { className: 'ind-pop-k', textContent: 'Regrouper par' }))
+    seg.before(zone); zone.append(btn, pop); pop.append(seg)
+    const nomPar = { jour: 'jour', semaine: 'semaine', mois: 'mois', annee: 'année' }
+    const majBtn = () => {
+      const v = seg.querySelector('input[name=indPar]:checked')?.value ?? 'mois'
+      btn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></svg><span>Par ${nomPar[v]}</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>`
+    }
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation()
+      const ouvrir = pop.hidden
+      if (typeof fermerPops === 'function') fermerPops(pop)
+      pop.hidden = !ouvrir; btn.setAttribute('aria-expanded', String(ouvrir))
+      if (ouvrir) seg.querySelector('input:checked')?.focus()
+    })
+    // Choix d'une période : le calcul se met à jour (gestionnaires d'origine), le libellé suit, le panneau se ferme.
+    seg.addEventListener('change', () => { majBtn(); pop.hidden = true; btn.setAttribute('aria-expanded', 'false'); btn.focus() })
+    majBtn()
+  }
 
   // ── Icônes (traits, couleur du texte) ─────────────────────────────────────────────────
   const I = (d) => `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`
@@ -193,9 +239,47 @@
     if (points.length < 2) return ''
     return `<div class="carte-axe"><span>${ech(points[0].l)}</span><span>${ech(points.at(-1).l)}</span></div>`
   }
-  const carte = ({ ico, titre, valeur, note = '', graphe = '', large = 0, info = '' }) =>
-    `<div class="carte${large ? ` l${large}` : ''}"${info ? ` title="${ech(info)}"` : ''}><div class="carte-tete">${ICO[ico] ?? ''}<span>${titre}</span></div>
-      <div class="carte-valeur">${valeur}</div>${note ? `<div class="carte-note">${note}</div>` : ''}${graphe ? `<div class="carte-graphe">${graphe}</div>` : ''}</div>`
+  // Grand graphique de chaque carte (fenêtre « agrandir ») : décrit ici, dessiné seulement à l'ouverture.
+  const GRANDS = new Map(); let numGrand = 0
+  const ICO_AGRANDIR = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>'
+  const carte = ({ ico, titre, valeur, note = '', graphe = '', large = 0, info = '', grand = null }) => {
+    let id = null
+    if (grand && graphe) { id = ++numGrand; GRANDS.set(id, { titre: titre.replace(/<[^>]+>/g, ''), ...grand }); if (GRANDS.size > 200) GRANDS.delete(GRANDS.keys().next().value) }
+    const bouton = id ? `<button type="button" class="carte-agrandir" data-carte-grand="${id}" title="Afficher en grand" aria-label="Afficher « ${ech(titre.replace(/<[^>]+>/g, ''))} » en grand">${ICO_AGRANDIR}</button>` : ''
+    return `<div class="carte${large ? ` l${large}` : ''}"${info ? ` title="${ech(info)}"` : ''}><div class="carte-tete">${ICO[ico] ?? ''}<span>${titre}</span>${bouton}</div>
+      <div class="carte-valeur">${valeur}</div>${note ? `<div class="carte-note">${note}</div>` : ''}${graphe ? `<div class="carte-graphe"${id ? ` data-carte-grand="${id}" title="Cliquer pour agrandir"` : ''}>${graphe}</div>` : ''}</div>`
+  }
+  // Spécifications des grands graphiques : barres par période (axes, survol) ou courbe jour par jour.
+  const grandBarres = (points, { titreY, suffixe = '', repere = null, nomRepere = '', explication = '' } = {}) =>
+    ({ type: 'barres', points, titreY, suffixe, repere, nomRepere, explication })
+  const grandJour = (d, valeurs, { nom, titreY, repere = null, nomRepere = '', explication = '' } = {}) =>
+    ({ type: 'jour', debutNum: d.debutNum, valeurs, nom, titreY, repere, nomRepere, explication })
+
+  // ── Fenêtre « agrandir » ──────────────────────────────────────────────────────────────
+  const modal = Object.assign(document.createElement('div'), { className: 'carte-modal', hidden: true })
+  modal.setAttribute('role', 'dialog'); modal.setAttribute('aria-modal', 'true')
+  modal.innerHTML = '<div class="carte-modal-panneau"><div class="carte-modal-tete"><div><h3></h3><p></p></div><button type="button" data-carte-fermer>Fermer</button></div><div class="carte-modal-corps"></div></div>'
+  document.body.appendChild(modal)
+  let retourFocus = null
+  function ouvrirGrand(id, declencheur) {
+    const g = GRANDS.get(+id); if (!g) return
+    const corps = modal.querySelector('.carte-modal-corps'), W = Math.max(320, Math.min(1130, innerWidth - 100)), H = Math.max(280, Math.min(460, innerHeight - 240))
+    const refs = fin(g.repere) ? [{ nom: g.nomRepere, valeur: g.repere, couleur: COUL.noir }] : []
+    modal.querySelector('h3').textContent = g.titre
+    modal.querySelector('p').textContent = g.explication || (g.type === 'jour' ? 'Chaque jour, avec la moyenne mobile sur 7 jours. Survolez la courbe pour les valeurs exactes.' : 'Survolez une barre pour sa valeur exacte.')
+    corps.innerHTML = g.type === 'jour'
+      ? lignesSvg({ W, H, debutNum: g.debutNum, titreY: g.titreY, refs,
+        series: [{ nom: g.nom, valeurs: g.valeurs, couleur: COUL.bleu, epaisseur: 1.4 }, { nom: 'Moyenne mobile 7 j', valeurs: moyenneMobile(g.valeurs, 7), couleur: COUL.noir, epaisseur: 2.2 }] })
+      : barresSvg({ W, H, categories: g.points.map((q) => q.l), series: [{ nom: g.titre, valeurs: g.points.map((q) => (fin(q.v) ? q.v : null)), couleur: COUL.bleu }], titreY: g.titreY, suffixe: g.suffixe, refs })
+    if (typeof convertirTitres === 'function') convertirTitres(corps)
+    retourFocus = declencheur; modal.hidden = false; modal.querySelector('[data-carte-fermer]').focus()
+  }
+  const fermerGrand = () => { if (modal.hidden) return; modal.hidden = true; modal.querySelector('.carte-modal-corps').innerHTML = ''; retourFocus?.focus?.() }
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest?.('[data-carte-grand]'); if (b) { e.stopPropagation(); return ouvrirGrand(b.dataset.carteGrand, b.closest('.carte')?.querySelector('.carte-agrandir') ?? b) }
+    if (e.target.closest?.('[data-carte-fermer]') || e.target === modal) fermerGrand()
+  })
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !modal.hidden) { e.stopPropagation(); fermerGrand() } }, true)
 
   // Séries par période (regroupement choisi en haut : jour, semaine, mois, année), sans la ligne « Total ».
   const periodes = (d) => (d.lignes ?? []).filter((x) => x.periode !== 'Total')
@@ -222,14 +306,17 @@
     const connues = (s.observee ?? 0) + (s.calculee ?? 0), partConnue = st.n ? connues / st.n : 0
     const derniere = s.imputee ? { l: 'Durée estimée', v: s.imputee, c: 'var(--muted-2)' } : { l: 'Durée inconnue', v: s.inconnue ?? 0, c: GRIS }
     return `<div class="cartes">
-      ${carte({ ico: 'lignes', titre: 'Lignes saisies', valeur: st.n, note: 'lignes par mois d’enregistrement', graphe: barres(parMoisSt(st, 'malades'), { unite: ' lignes' }) })}
+      ${carte({ ico: 'lignes', titre: 'Lignes saisies', valeur: st.n, note: 'lignes par mois d’enregistrement', graphe: barres(parMoisSt(st, 'malades'), { unite: ' lignes' }),
+        grand: grandBarres(parMoisSt(st, 'malades'), { titreY: 'Lignes saisies', explication: 'Nombre de lignes du registre saisies, par mois d’enregistrement.' }) })}
       ${carte({ ico: 'calendrier', titre: 'Période saisie', large: 2, valeur: `${d.premierSaisi ? fmtDate(d.premierSaisi) : '—'} <small>→</small> ${d.dernierSaisi ? fmtDate(d.dernierSaisi) : '—'}`,
-        note: `${mois.length} mois saisis${trous.length ? ` · <b style="color:var(--ink)">${trous.length} mois sans aucune ligne</b> (gris)` : ' · aucun mois vide'} ; les calculs s’arrêtent au dernier jour saisi`, graphe: frise })}
+        note: `${mois.length} mois saisis${trous.length ? ` · <b style="color:var(--ink)">${trous.length} mois sans aucune ligne</b> (gris)` : ' · aucun mois vide'} ; les calculs s’arrêtent au dernier jour saisi`, graphe: frise,
+        grand: grandBarres(tous.map((m) => ({ l: etiquettePeriode(m), v: st.parMois[m]?.malades ?? 0 })), { titreY: 'Lignes saisies', explication: 'Chaque mois entre le premier et le dernier jour saisi ; un mois à 0 est un trou de saisie.' }) })}
       ${carte({ ico: 'coche', titre: 'Durée de séjour connue', valeur: `${Math.round(100 * partConnue)}<small>%</small>`, note: `${st.sortiesEcrites} dates de sortie · ${st.nbJoursEcrits} nombres de jours`, graphe: jauge(partConnue, { repere: d.reglages?.seuil ?? 0.9, nomRepere: `seuil de la période exploitable : ${Math.round(100 * (d.reglages?.seuil ?? 0.9))} %` }) })}
       ${carte({ ico: 'lit', titre: 'Ce que l’on sait de la fin de chaque séjour', large: 4, valeur: `${connues + (s.censuree ?? 0)}<small>séjours comptés dans l’occupation sur ${st.n}</small>`,
         note: s.imputee ? `durées estimées d’après le prix (${d.reglages.sources.prix}), l’issue (${d.reglages.sources.issue}) ou la médiane (${d.reglages.sources.mediane})`
           : `durée inconnue : exclus de l’occupation${d.reglages?.partisSansDuree ? ` · dont ${d.reglages.partisSansDuree} partis (SCAM, sortie, MEO…) sans date ni nombre de jours` : ''}`,
-        graphe: repartition([{ l: 'Sortie écrite', v: s.observee ?? 0, c: NOIR }, { l: 'Sortie calculée', v: s.calculee ?? 0, c: BLEU }, { l: `Encore hospitalisés (entrés depuis moins de ${d.reglages?.fenetreCensure ?? 30} j)`, v: s.censuree ?? 0, c: BLEU_PALE }, derniere]) })}
+        graphe: repartition([{ l: 'Sortie écrite', v: s.observee ?? 0, c: NOIR }, { l: 'Sortie calculée', v: s.calculee ?? 0, c: BLEU }, { l: `Encore hospitalisés (entrés depuis moins de ${d.reglages?.fenetreCensure ?? 30} j)`, v: s.censuree ?? 0, c: BLEU_PALE }, derniere]),
+        grand: grandBarres([{ l: 'Sortie écrite', v: s.observee ?? 0 }, { l: 'Sortie calculée', v: s.calculee ?? 0 }, { l: 'Encore hospitalisés', v: s.censuree ?? 0 }, { l: derniere.l, v: derniere.v }], { titreY: 'Séjours', explication: 'Nombre de séjours selon ce que l’on sait de leur fin.' }) })}
     </div>
     ${d.message ? `<div class="alert warn" style="margin-top:12px;display:block">${d.message}</div>` : ''}
     ${alertePeriode(d)}${alerteTrous(d)}${alerteDoublons(d)}
@@ -243,22 +330,30 @@
     return `${alertePeriode(d)}${d.reglages?.trouFinal ? alerteTrous({ reglages: { ...d.reglages, trous: [d.reglages.trouFinal] } }) : ''}<div class="cartes" style="margin-top:4px">
       ${carte({ ico: 'lit', titre: 'Taux d’occupation moyen', valeur: lits ? `${aff(t.tom)}<small>%</small>` : '—',
         note: lits ? `fourchette ${aff(t.tomBas)} – ${aff(t.tomHaut)} % · repère 85 % (service tendu)` : 'indiquez le nombre de lits',
-        graphe: lits ? courbe(parPeriode(d, (x) => x.tom), { unite: ' %', repere: 85, nomRepere: '85 % : service tendu' }) : '' })}
+        graphe: lits ? courbe(parPeriode(d, (x) => x.tom), { unite: ' %', repere: 85, nomRepere: '85 % : service tendu' }) : '',
+        grand: lits ? grandBarres(parPeriode(d, (x) => x.tom), { titreY: 'Taux d’occupation (%)', suffixe: ' %', repere: 85, nomRepere: '85 % tendu', explication: `Taux d’occupation moyen par ${unite} ; trait : 85 %, service tendu.` }) : null })}
       ${carte({ ico: 'personnes', titre: `${present} (moyenne)`, valeur: aff(arrondi(t.JH / Math.max(1, t.J))),
         note: `écart-type ${aff(arrondi(sx.s))} · maximum ${Math.round(t.max)} · moyenne par semaine`,
-        graphe: courbe(hebdo(d, d.presents), { repere: lits || null, nomRepere: `${lits} lits` }) })}
+        graphe: courbe(hebdo(d, d.presents), { repere: lits || null, nomRepere: `${lits} lits` }),
+        grand: grandJour(d, d.presents, { nom: present, titreY: present, repere: lits || null, nomRepere: `${lits} lits` }) })}
       ${carte({ ico: 'entree', titre: 'Admissions par jour', valeur: aff(arrondi(t.adm / Math.max(1, t.J))), note: `${t.adm} admissions en ${t.J} jours · par ${unite}`,
-        graphe: barres(parPeriode(d, (x) => (x.J ? x.adm / x.J : null)), { unite: ' par jour' }) })}
+        graphe: barres(parPeriode(d, (x) => (x.J ? x.adm / x.J : null)), { unite: ' par jour' }),
+        grand: grandJour(d, d.adm, { nom: 'Admissions du jour', titreY: 'Admissions par jour' }) })}
       ${carte({ ico: 'sablier', titre: 'Durée moyenne de séjour', valeur: `${aff(t.dms)}<small>nuits</small>`, note: `${Math.round(t.ns)} séjours terminés · par ${unite}`,
-        graphe: courbe(parPeriode(d, (x) => x.dms), { unite: ' nuits' }) })}
+        graphe: courbe(parPeriode(d, (x) => x.dms), { unite: ' nuits' }),
+        grand: grandBarres(parPeriode(d, (x) => x.dms), { titreY: 'Durée moyenne (nuits)', explication: `Durée moyenne des séjours terminés, par ${unite}.` }) })}
       ${carte({ ico: 'calendrier', titre: 'Journées d’hospitalisation', valeur: Math.round(t.JH).toLocaleString('fr-FR'), note: `en ${t.J} jours · par ${unite}`,
-        graphe: barres(parPeriode(d, (x) => x.JH), { unite: ' journées', fmt: (v) => nb(v, 0) }) })}
+        graphe: barres(parPeriode(d, (x) => x.JH), { unite: ' journées', fmt: (v) => nb(v, 0) }),
+        grand: grandBarres(parPeriode(d, (x) => x.JH), { titreY: 'Journées d’hospitalisation', explication: `Somme des présents de chaque jour, par ${unite}.` }) })}
       ${carte({ ico: 'alerte', titre: 'Jours en sureffectif', valeur: lits ? t.sur : '—', note: lits ? `plus de présents que de lits · ${nb(t.J ? 100 * t.sur / t.J : 0, 1)} % des jours` : 'indiquez le nombre de lits',
-        graphe: lits ? barres(parPeriode(d, (x) => x.sur), { unite: ' jours', fmt: (v) => nb(v, 0) }) : '' })}
+        graphe: lits ? barres(parPeriode(d, (x) => x.sur), { unite: ' jours', fmt: (v) => nb(v, 0) }) : '',
+        grand: lits ? grandBarres(parPeriode(d, (x) => x.sur), { titreY: 'Jours en sureffectif', explication: `Jours où les présents dépassent les lits, par ${unite}.` }) : null })}
       ${carte({ ico: 'rotation', titre: 'Rotation des lits', valeur: aff(t.rot), note: `patients par lit · par ${unite}`,
-        graphe: lits ? barres(parPeriode(d, (x) => x.rot), { unite: ' patients par lit', fmt: (v) => nb(v, 2) }) : '' })}
+        graphe: lits ? barres(parPeriode(d, (x) => x.rot), { unite: ' patients par lit', fmt: (v) => nb(v, 2) }) : '',
+        grand: lits ? grandBarres(parPeriode(d, (x) => x.rot), { titreY: 'Patients par lit', explication: `Rotation des lits (sorties ÷ lits), par ${unite}.` }) : null })}
       ${carte({ ico: 'pause', titre: 'Intervalle de rotation', valeur: `${aff(t.inter)}<small>j</small>`, note: 'jours où un lit reste vide entre deux patients',
-        graphe: lits ? courbe(parPeriode(d, (x) => x.inter), { unite: ' j', repere: 0, nomRepere: '0 : aucun lit vide (en dessous : sureffectif)' }) : '' })}
+        graphe: lits ? courbe(parPeriode(d, (x) => x.inter), { unite: ' j', repere: 0, nomRepere: '0 : aucun lit vide (en dessous : sureffectif)' }) : '',
+        grand: lits ? grandBarres(parPeriode(d, (x) => x.inter), { titreY: 'Jours de lit vide', explication: `Intervalle de rotation : jours où un lit reste vide entre deux patients, par ${unite}.` }) : null })}
     </div>${htmlRepartition(d)}`
   }
 
@@ -269,18 +364,22 @@
     const ages = Object.entries(st.ages), totAge = ages.reduce((a, [, s]) => a + s.M + s.F, 0)
     const moins5 = (st.ages['0 – 11 mois']?.M ?? 0) + (st.ages['0 – 11 mois']?.F ?? 0) + (st.ages['12 – 59 mois']?.M ?? 0) + (st.ages['12 – 59 mois']?.F ?? 0)
     const G = ages.reduce((a, [, s]) => a + s.M, 0), F = ages.reduce((a, [, s]) => a + s.F, 0)
-    const issue = (ico, titre, cle, champ) => carte({ ico, titre, valeur: `${st.issues[cle] ?? 0}`, note: `${nb(pct(cle), 1)} % des séjours · par mois`, graphe: barres(parMoisSt(st, champ), { fmt: (v) => nb(v, 0) }) })
+    const issue = (ico, titre, cle, champ) => carte({ ico, titre, valeur: `${st.issues[cle] ?? 0}`, note: `${nb(pct(cle), 1)} % des séjours · par mois`, graphe: barres(parMoisSt(st, champ), { fmt: (v) => nb(v, 0) }),
+      grand: grandBarres(parMoisSt(st, champ), { titreY: titre, explication: `${titre}, par mois d’enregistrement.` }) })
     const histoAge = barres(ages.map(([k, s]) => ({ l: k, v: s.M + s.F })), { fmt: (v) => nb(v, 0), unite: ' enfants' })
     return `<div class="cartes">
       ${issue('croix', 'Décès', 'Décès', 'dcd')}
       ${issue('sortie', 'Sorties contre avis (SCAM)', 'Sortie contre avis (SCAM)', 'scam')}
       ${issue('envoi', 'Référés / transférés', 'Référé / transféré', 'ref')}
       ${issue('oeil', 'Mises en observation (MEO)', 'Mise en observation (MEO)', 'meo')}
-      ${carte({ ico: 'goutte', titre: 'Transfusions', valeur: transf, note: `${n ? nb(100 * transf / n, 1) : '—'} % des enfants · par mois`, graphe: barres(parMoisSt(st, 'transf'), { fmt: (v) => nb(v, 0) }) })}
+      ${carte({ ico: 'goutte', titre: 'Transfusions', valeur: transf, note: `${n ? nb(100 * transf / n, 1) : '—'} % des enfants · par mois`, graphe: barres(parMoisSt(st, 'transf'), { fmt: (v) => nb(v, 0) }),
+        grand: grandBarres(parMoisSt(st, 'transf'), { titreY: 'Enfants transfusés', explication: 'Enfants dont le traitement mentionne une transfusion, par mois.' }) })}
       ${carte({ ico: 'age', titre: 'Âge médian', valeur: st.ageMedian === null ? '—' : st.ageMedian < 24 ? `${Math.round(st.ageMedian)}<small>mois</small>` : `${arrondi(st.ageMedian / 12)}<small>ans</small>`,
-        note: 'répartition par tranche d’âge', graphe: histoAge })}
+        note: 'répartition par tranche d’âge', graphe: histoAge,
+        grand: grandBarres(ages.map(([k, s]) => ({ l: k, v: s.M + s.F })), { titreY: 'Enfants', explication: 'Nombre d’enfants par tranche d’âge.' }) })}
       ${carte({ ico: 'bebe', titre: 'Moins de 5 ans', valeur: `${totAge ? Math.round(100 * moins5 / totAge) : 0}<small>%</small>`, note: `${moins5} enfants sur ${totAge} d’âge connu`, graphe: jauge(totAge ? moins5 / totAge : 0) })}
-      ${carte({ ico: 'sexe', titre: 'Garçons / filles', valeur: `${G}<small>/</small> ${F}`, note: `${F ? nb(G / F, 2) : '—'} garçon(s) par fille`, graphe: repartition([{ l: 'Garçons', v: G, c: NOIR }, { l: 'Filles', v: F, c: BLEU }]) })}
+      ${carte({ ico: 'sexe', titre: 'Garçons / filles', valeur: `${G}<small>/</small> ${F}`, note: `${F ? nb(G / F, 2) : '—'} garçon(s) par fille`, graphe: repartition([{ l: 'Garçons', v: G, c: NOIR }, { l: 'Filles', v: F, c: BLEU }]),
+        grand: grandBarres(ages.map(([k, s]) => ({ l: `${k} · garçons`, v: s.M })).concat(ages.map(([k, s]) => ({ l: `${k} · filles`, v: s.F }))), { titreY: 'Enfants', explication: 'Garçons puis filles, par tranche d’âge.' }) })}
     </div>`
   }
 })()
