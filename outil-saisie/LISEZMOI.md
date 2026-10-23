@@ -226,7 +226,8 @@ au-delà, la saisie est à reprendre. Le contrôle se fait en plusieurs séances
 - **Synthèse** : chaque chiffre est une carte avec son petit graphique (évolution par période, répartition,
   jauge) ; survolez une barre ou un point pour sa valeur exacte. Le bouton d'agrandissement de la carte (ou un clic
   sur son graphique) l'ouvre en grand, avec axes, légende et valeurs au survol (Échap ou Fermer pour revenir).
-- **Par mois** (barre de filtres) : ouvre le choix du regroupement, jour, semaine, mois ou année.
+- **Barre du haut** (onglet Indicateurs) : à gauche les filtres, Statistique, Par mois (jour, semaine, mois,
+  année) et Calcul ; à droite Affichage, le service et le bouton profil (sauvegarde, aide).
 - **En-tête de chaque carte** : l'icône livre affiche ou masque son « Comment lire » (le menu Affichage règle toutes
   les cartes d'un coup) ; les icônes triangle (avertissements) et i (remarques), avec leur nombre, ouvrent le détail.
 - **Conclusion pour le modèle** : sous chaque analyse qui décide d'un choix du modèle NERA (rythme de la

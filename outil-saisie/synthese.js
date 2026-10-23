@@ -21,7 +21,7 @@
   #btnCalcul span { min-width: 0; }
   /* Écran plus étroit : Calcul et Affichage en icône seule (libellé au survol), pour garder une seule ligne */
   @media (max-width: 1180px) {
-    #btnCalcul > span { display: none; }
+    #btnCalcul > span, .topbar .ind-pop-btn > span:not(.lib-calcul) { display: none; }
     .ind-pop-btn { padding: 0 11px; }
     .ind-filtre > .ind-filtre-k { display: none; }
     .ind-tete-droite, .ind-filtre { gap: 8px; }
