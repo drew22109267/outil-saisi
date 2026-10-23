@@ -226,7 +226,11 @@ au-delà, la saisie est à reprendre. Le contrôle se fait en plusieurs séances
 - **Synthèse** : chaque chiffre est une carte avec son petit graphique (évolution par période, répartition,
   jauge) ; survolez une barre ou un point pour sa valeur exacte. Le bouton d'agrandissement de la carte (ou un clic
   sur son graphique) l'ouvre en grand, avec axes, légende et valeurs au survol (Échap ou Fermer pour revenir).
-- **Par mois** (barre de filtres) : ouvre le choix du regroupement, jour, semaine, mois ou année. En haut, le nombre de lignes et l'heure du dernier calcul
+- **Par mois** (barre de filtres) : ouvre le choix du regroupement, jour, semaine, mois ou année.
+- **En-tête de chaque carte** : l'icône livre affiche ou masque son « Comment lire » (le menu Affichage règle toutes
+  les cartes d'un coup) ; les icônes triangle (avertissements) et i (remarques), avec leur nombre, ouvrent le détail.
+- **Registre des urgences** (passages, sans date d'entrée ni de sortie d'hospitalisation) : la Synthèse montre les
+  passages, les constantes relevées, l'orientation décidée et les patients, pas de durée de séjour. En haut, le nombre de lignes et l'heure du dernier calcul
   (« +3 depuis la dernière fois »).
 - **Filtre « Statistique »** (en haut) : « Toutes » (les statistiques de la rubrique les unes sous les autres)
   ou une seule ; flèches ‹ › pour passer à la précédente ou à la suivante.

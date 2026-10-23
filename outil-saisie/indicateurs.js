@@ -1726,7 +1726,8 @@ function dessinerVue() {
 
 // ── Avertissements et remarques ───────────────────────────────────────────────────────────
 // Les encadrés orange/rouges (avertissements) et bleus (remarques) d'une section ne s'affichent plus en
-// entier : à leur place, deux boutons avec leur nombre ; un clic ouvre le détail dans un panneau à droite.
+// entier : à leur place, deux icônes avec leur nombre, dans l'en-tête de la carte à côté d'« Agrandir » (dans la
+// fenêtre agrandie, au-dessus du contenu) ; un clic ouvre le détail dans un panneau à droite.
 // Un encadré qui est à lui seul tout le contenu de la section (« Indiquez le nombre de lits ») reste visible.
 const NOTES = []
 const ICO_AVERT = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01"/></svg>'
@@ -1739,10 +1740,13 @@ function regrouperAlertes(racine) {
     const avert = alertes.filter((a) => a.classList.contains('warn') || a.classList.contains('crit')), rem = alertes.filter((a) => !avert.includes(a))
     const id = NOTES.push({ titre: sec.querySelector('h5 span')?.textContent || $('#indModalTitre')?.textContent || 'Section',
       avert: avert.map((a) => ({ html: a.innerHTML, crit: a.classList.contains('crit') })), rem: rem.map((a) => ({ html: a.innerHTML })) }) - 1
-    const barre = document.createElement('div'); barre.className = 'ind-notes'
-    barre.innerHTML = (avert.length ? `<button type="button" class="ind-note-btn avert ${avert.some((a) => a.classList.contains('crit')) ? 'crit' : ''}" data-notes="${id}" data-type="avert" aria-haspopup="dialog">${ICO_AVERT}${pluriel(avert.length, 'Avertissement')}<span class="nb">${avert.length}</span></button>` : '')
-      + (rem.length ? `<button type="button" class="ind-note-btn rem" data-notes="${id}" data-type="rem" aria-haspopup="dialog">${ICO_INFO}${pluriel(rem.length, 'Remarque')}<span class="nb">${rem.length}</span></button>` : '')
-    alertes[0].before(barre); alertes.forEach((a) => a.remove())
+    const crit = avert.some((a) => a.classList.contains('crit'))
+    const icones = (avert.length ? `<button type="button" class="ind-ico-btn ind-note-ico avert ${crit ? 'crit' : ''}" data-notes="${id}" data-type="avert" aria-haspopup="dialog" title="${avert.length} ${pluriel(avert.length, 'avertissement')}" aria-label="${avert.length} ${pluriel(avert.length, 'avertissement')}">${ICO_AVERT}<span class="nb">${avert.length}</span></button>` : '')
+      + (rem.length ? `<button type="button" class="ind-ico-btn ind-note-ico rem" data-notes="${id}" data-type="rem" aria-haspopup="dialog" title="${rem.length} ${pluriel(rem.length, 'remarque')}" aria-label="${rem.length} ${pluriel(rem.length, 'remarque')}">${ICO_INFO}<span class="nb">${rem.length}</span></button>` : '')
+    const actions = sec.querySelector('h5 .ind-tete-actions')
+    if (actions) actions.querySelector('.ind-agrandir').insertAdjacentHTML('beforebegin', icones)
+    else { const barre = document.createElement('div'); barre.className = 'ind-notes'; barre.innerHTML = icones; alertes[0].before(barre) }
+    alertes.forEach((a) => a.remove())
   })
 }
 let notesOuvertes = null, notesRetour = null
@@ -1788,16 +1792,25 @@ function htmlSection(s, k, c, W, agrandi = false) {
     cacheIndicateurs.d = dOrigine
     s._survol = null
     const r0 = rs[0].r
-    return `<section class="ind-section" ${agrandi ? '' : `id="ind-s${k}"`} data-k="${k}">${agrandi ? '' : `<h5><span>${s.t}</span><button type="button" class="ind-agrandir" data-agrandir="${k}" title="Afficher en grand, avec toutes ses statistiques">${ICONE_AGRANDIR} Agrandir</button></h5>`}${r0.options ? `<div class="ind-options">${r0.options}</div>` : ''}
+    return `<section class="ind-section" ${agrandi ? '' : `id="ind-s${k}"`} data-k="${k}">${enteteSection(s, k, agrandi, !!r0.lecture)}${r0.options ? `<div class="ind-options">${r0.options}</div>` : ''}
       ${rs.map(({ v, r }) => `<div class="ind-variante ind-variante-${v.k}"><div class="ind-variante-titre">${v.nom}</div>${r.avant ?? ''}<div class="ind-graphe">${r.html}</div></div>`).join('')}
-      ${(etat.indLecture === false && !agrandi) || !r0.lecture ? '' : `<div class="ind-lecture"><b>Comment lire :</b> la même rubrique est montrée pour les trois méthodes de comptage. ${rs.map(({ v, r }) => r.lecture && v.k !== 'minuit' ? '' : r.lecture).join('')}</div>`}</section>`
+      ${!r0.lecture ? '' : `<div class="ind-lecture" ${lectureVisible(s.t, agrandi) ? '' : 'hidden'}><b>Comment lire :</b> la même rubrique est montrée pour les trois méthodes de comptage. ${rs.map(({ v, r }) => r.lecture && v.k !== 'minuit' ? '' : r.lecture).join('')}</div>`}</section>`
   }
   const r = rendre1(c)
   s._survol = r.survol
   // Mention de la méthode de comptage (et de la capacité variable) en tête de chaque graphe de l'occupation.
   const methodeTxt = (s.occ || s.comptage) && !s.sansComptage && c.d?.reglages ? `<div class="ind-methode">Comptage : ${NOMS_COMPTAGE[c.d.reglages.comptage] ?? ''}${c.d.changementsLits?.length ? ` · capacité variable : ${[c.d.litsJour?.[0], ...c.d.changementsLits.map((x) => `${x.lits} dès le ${fmtDate(versDate(x.j))}`)].join(' → ')}` : ''}</div>` : ''
-  return `<section class="ind-section" ${agrandi ? '' : `id="ind-s${k}"`} data-k="${k}">${agrandi ? '' : `<h5><span>${s.t}</span><button type="button" class="ind-agrandir" data-agrandir="${k}" title="Afficher en grand, avec toutes ses statistiques">${ICONE_AGRANDIR} Agrandir</button></h5>`}${r.options ? `<div class="ind-options">${r.options}</div>` : ''}${r.avant ?? ''}
-    ${methodeTxt}<div class="ind-graphe">${r.html}</div>${(etat.indLecture === false && !agrandi) || !r.lecture ? '' : `<div class="ind-lecture"><b>Comment lire :</b> ${r.lecture}</div>`}</section>`
+  return `<section class="ind-section" ${agrandi ? '' : `id="ind-s${k}"`} data-k="${k}">${enteteSection(s, k, agrandi, !!r.lecture)}${r.options ? `<div class="ind-options">${r.options}</div>` : ''}${r.avant ?? ''}
+    ${methodeTxt}<div class="ind-graphe">${r.html}</div>${!r.lecture ? '' : `<div class="ind-lecture" ${lectureVisible(s.t, agrandi) ? '' : 'hidden'}><b>Comment lire :</b> ${r.lecture}</div>`}</section>`
+}
+// « Comment lire » : affiché ou non pour chaque rubrique (icône de l'en-tête) ; par défaut, le réglage du menu
+// Affichage. Le choix d'une rubrique est gardé (etat.indLectureSec) jusqu'au prochain changement du réglage général.
+const lectureVisible = (titre, agrandi) => (agrandi ? true : etat.indLectureSec?.[titre] ?? etat.indLecture !== false)
+const ICO_LIRE = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 5.5A2.5 2.5 0 0 1 4.5 3H10a2 2 0 0 1 2 2v16a2 2 0 0 0-2-2H2z"/><path d="M22 5.5A2.5 2.5 0 0 0 19.5 3H14a2 2 0 0 0-2 2v16a2 2 0 0 1 2-2h8z"/></svg>'
+function enteteSection(s, k, agrandi, aLecture) {
+  if (agrandi) return ''
+  const vis = lectureVisible(s.t, false)
+  return `<h5><span>${s.t}</span><span class="ind-tete-actions">${aLecture ? `<button type="button" class="ind-ico-btn ind-lire-btn" data-lecture="${echapper(s.t)}" aria-pressed="${vis}" title="${vis ? 'Masquer' : 'Afficher'} « Comment lire »">${ICO_LIRE}</button>` : ''}<button type="button" class="ind-agrandir" data-agrandir="${k}" title="Afficher en grand, avec toutes ses statistiques">${ICONE_AGRANDIR} Agrandir</button></span></h5>`
 }
 const ICONE_AGRANDIR = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>'
 // Fenêtre « Agrandir » : la section seule, en grand, avec navigation vers les sections voisines.
@@ -1914,7 +1927,14 @@ $('#indNav').addEventListener('click', (e) => {
   const b = e.target.closest('[data-onglet]'); if (!b || b.disabled) return
   etat.indOnglet = b.dataset.onglet; sauver(); dessinerVue(); $('#indZone').scrollTop = 0
 })
-$('#indAide').addEventListener('change', (e) => { etat.indLecture = e.target.checked; sauver(); redessinerSurPlace() })
+$('#indAide').addEventListener('change', (e) => { etat.indLecture = e.target.checked; etat.indLectureSec = {}; sauver(); redessinerSurPlace() })
+document.addEventListener('click', (e) => {
+  const b = e.target.closest?.('[data-lecture]'); if (!b) return
+  const t = b.dataset.lecture, vis = !lectureVisible(t, false)
+  ;(etat.indLectureSec ??= {})[t] = vis; sauver()
+  const bloc = b.closest('.ind-section')?.querySelector(':scope > .ind-lecture'); if (bloc) bloc.hidden = !vis
+  b.setAttribute('aria-pressed', String(vis)); b.title = `${vis ? 'Masquer' : 'Afficher'} « Comment lire »`
+})
 // Vues 3D au choix : décochées, les sections 3D disparaissent de toutes les rubriques (les graphiques 2D restent).
 $('#ind3D').addEventListener('change', (e) => { etat.ind3D = e.target.checked; for (const k in etat.indSous ?? {}) etat.indSous[k] = 'tout'; sauver(); dessinerVue() })
 const redessinerSurPlace = () => { const z = $('#indZone'), haut = z.scrollTop; dessinerVue(); z.scrollTop = haut; if (modalK !== null) { const m = $('#indModalCorps'), h2 = m.scrollTop; ouvrirModal(Math.min(modalK, sectionsVue.length - 1)); m.scrollTop = h2 } }

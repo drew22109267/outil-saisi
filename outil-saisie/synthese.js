@@ -61,6 +61,16 @@
   .ind-section:last-child { margin-bottom: 4px; border-bottom: 1px solid var(--line-strong); }
   #indModalCorps .ind-section { border: 0; padding: 0; }
   .ind-section h5 { font-size: 16px; font-weight: 650; letter-spacing: -0.01em; margin: 0 0 14px; align-items: center; }
+  .ind-section h5 { justify-content: space-between; }
+  .ind-tete-actions { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+  .ind-ico-btn { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 32px; height: 32px; padding: 0 8px;
+    border: 1px solid var(--line); border-radius: 999px; background: var(--surface-2); color: var(--muted); cursor: pointer; font: inherit; font-size: 12px; font-weight: 700; }
+  .ind-ico-btn:hover { background: var(--surface); border-color: var(--line-strong); color: var(--ink); }
+  .ind-ico-btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+  .ind-lire-btn[aria-pressed=true] { background: var(--noir-soft); color: var(--noir); border-color: var(--line-strong); }
+  .ind-note-ico.avert { color: var(--sev-2-ink); } .ind-note-ico.avert.crit { color: var(--sev-1-ink); } .ind-note-ico.rem { color: var(--brand-ink); }
+  .ind-note-ico .nb { font-size: 11.5px; color: var(--ink); }
+  .ind-lecture[hidden] { display: none !important; }
   .ind-section h5 .ind-agrandir { background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; font-size: 12.5px; font-weight: 600; color: var(--ink); }
   .ind-section h5 .ind-agrandir:hover { background: var(--brand-soft); color: var(--brand-ink); border-color: var(--brand-soft-2); }
   /* Bandeau de chiffres : une pilule, valeur en gras puis libellé, séparateurs verticaux */
@@ -295,7 +305,83 @@
   const parMoisSt = (st, k) => moisSt(st).map((m) => ({ l: etiquettePeriode(m), v: st.parMois[m][k] ?? 0 }))
 
   // ── Votre saisie ──────────────────────────────────────────────────────────────────────
+  // ── Registre de passages (urgences, triage) ───────────────────────────────────────────
+  // Une ligne = un passage aux urgences, avec sa date de passage et la décision d'orientation. Il n'y a ni date
+  // d'entrée ni date de sortie d'hospitalisation : pas de durée de séjour, pas d'« encore hospitalisé ».
+  const sansSejours = () => typeof registre === 'function' && !registre()?.sortieCalculee
+  const ORIENTATIONS = [['Hospitalisé', BLEU], ['Externe', NOIR], ['MEO', BLEU_PALE], ['Référé', 'var(--muted)'], ['Décédé', 'var(--brand-700)'], ['SCAM', 'var(--muted-2)'], ['Autre', GRIS]]
+  function passages() {
+    const ref = registre().dateReference
+    return lignesService().map((l) => {
+      const dt = (typeof lireDateSouple === 'function' ? lireDateSouple : lireDate)(l[ref])
+      return { l, mois: dt ? `${dt.d.getFullYear()}-${String(dt.d.getMonth() + 1).padStart(2, '0')}` : null, jour: dt ? jourNum(dt.d) : null, orient: issueUrg(l) }
+    })
+  }
+  function moisCouverts(ps) {
+    const m = [...new Set(ps.map((p) => p.mois).filter(Boolean))].sort(); if (!m.length) return []
+    const out = []; for (let a = +m[0].slice(0, 4), k = +m[0].slice(5); `${a}-${String(k).padStart(2, '0')}` <= m.at(-1); k === 12 ? (a++, k = 1) : k++) out.push(`${a}-${String(k).padStart(2, '0')}`)
+    return out
+  }
+  const parMoisPassages = (ps, mois, f = () => true) => mois.map((m) => ({ l: etiquettePeriode(m), v: ps.filter((p) => p.mois === m && f(p)).length }))
+  function htmlSaisiePassages({ st }) {
+    const ps = passages(), n = ps.length, mois = moisCouverts(ps), avec = new Set(ps.map((p) => p.mois))
+    const jours = ps.map((p) => p.jour).filter((j) => j !== null), j0 = jours.length ? Math.min(...jours) : null, j1 = jours.length ? Math.max(...jours) : null
+    const pas = W / Math.max(1, mois.length)
+    const frise = mois.length ? `<svg viewBox="0 0 ${W} 14" height="14" preserveAspectRatio="none">${mois.map((m, i) => `<rect x="${(i * pas + 1).toFixed(1)}" y="0" width="${Math.max(1, pas - 2).toFixed(1)}" height="14" rx="2.5" fill="${avec.has(m) ? BLEU : GRIS}"><title>${etiquettePeriode(m)} : ${ps.filter((p) => p.mois === m).length} passages</title></rect>`).join('')}</svg>${axe(mois.map((m) => ({ l: etiquettePeriode(m) })))}` : ''
+    const trous = mois.filter((m) => !avec.has(m))
+    const constantes = [['temperature', 'Temp.'], ['pouls', 'Pouls'], ['ta', 'TA'], ['glycemie', 'Glyc.'], ['poids', 'Poids'], ['fr', 'FR'], ['spo2', 'SpO2']].filter(([k]) => aCol(k))
+    const part = (k) => (n ? 100 * ps.filter((p) => String(p.l[k] ?? '').trim()).length / n : 0)
+    const ptsConst = constantes.map(([k, l]) => ({ l, v: part(k) }))
+    const decides = ps.filter((p) => p.orient), compte = (o) => decides.filter((p) => p.orient === o).length
+    const parts = ORIENTATIONS.map(([o, c]) => ({ l: o, v: compte(o), c })).filter((q) => q.v > 0)
+    if (n - decides.length) parts.push({ l: 'Non renseignée', v: n - decides.length, c: 'var(--line)' })
+    return `<div class="cartes">
+      ${carte({ ico: 'lignes', titre: 'Passages saisis', valeur: n, note: 'passages aux urgences, par mois', graphe: barres(parMoisPassages(ps, mois), { unite: ' passages', fmt: (v) => nb(v, 0) }),
+        grand: grandBarres(parMoisPassages(ps, mois), { titreY: 'Passages', explication: 'Nombre de passages aux urgences saisis, par mois.' }) })}
+      ${carte({ ico: 'calendrier', titre: 'Période saisie', large: 2, valeur: `${j0 !== null ? fmtDate(versDate(j0)) : '—'} <small>→</small> ${j1 !== null ? fmtDate(versDate(j1)) : '—'}`,
+        note: `${avec.size} mois saisis${trous.length ? ` · <b style="color:var(--ink)">${trous.length} mois sans aucun passage</b> (gris)` : ' · aucun mois vide'}`, graphe: frise,
+        grand: grandBarres(parMoisPassages(ps, mois), { titreY: 'Passages', explication: 'Chaque mois entre le premier et le dernier passage saisi ; un mois à 0 est un trou de saisie.' }) })}
+      ${carte({ ico: 'coche', titre: 'Constantes relevées', valeur: constantes.length ? `${nb(part(constantes[0][0]), 0)}<small>% avec ${constantes[0][1].toLowerCase()}</small>` : '—',
+        note: 'part des passages où chaque constante est écrite', graphe: barres(ptsConst, { unite: ' %', fmt: (v) => nb(v, 0) }),
+        grand: grandBarres(ptsConst, { titreY: 'Passages renseignés (%)', suffixe: ' %', explication: 'Part des passages où chaque constante est écrite : c’est elle qui dira quelles variables le modèle de triage peut utiliser.' }) })}
+      ${carte({ ico: 'envoi', titre: 'Orientation décidée aux urgences', large: 4, valeur: `${decides.length}<small>passages avec une décision écrite sur ${n}</small>`,
+        note: 'c’est la classe que le modèle de triage apprendra à prévoir', graphe: repartition(parts),
+        grand: grandBarres(parts.map((q) => ({ l: q.l, v: q.v })), { titreY: 'Passages', explication: 'Nombre de passages selon la décision d’orientation écrite.' }) })}
+    </div>`
+  }
+  function htmlQualitePassages({ st }) {
+    const ps = passages(), n = ps.length, mois = moisCouverts(ps), pct = (k) => (n ? 100 * ps.filter((p) => p.orient === k).length / n : 0)
+    const orient = (ico, titre, k) => carte({ ico, titre, valeur: `${ps.filter((p) => p.orient === k).length}`, note: `${nb(pct(k), 1)} % des passages · par mois`,
+      graphe: barres(parMoisPassages(ps, mois, (p) => p.orient === k), { fmt: (v) => nb(v, 0) }),
+      grand: grandBarres(parMoisPassages(ps, mois, (p) => p.orient === k), { titreY: titre, explication: `${titre}, par mois.` }) })
+    const ages = ps.map((p) => ageEnMois(p.l.age)).filter((a) => a !== null).sort((a, b) => a - b)
+    const med = ages.length ? ages[Math.floor((ages.length - 1) / 2)] : null, moins15 = ages.filter((a) => a < 180).length
+    const tranches = [['0 – 11 mois', 0, 12], ['1 – 4 ans', 12, 60], ['5 – 14 ans', 60, 180], ['15 – 49 ans', 180, 600], ['50 ans et plus', 600, Infinity]]
+      .map(([l, a, b]) => ({ l, v: ages.filter((x) => x >= a && x < b).length }))
+    const H = ps.filter((p) => /^m/i.test(String(p.l.sexe ?? '').trim())).length, F = ps.filter((p) => /^f/i.test(String(p.l.sexe ?? '').trim())).length
+    return `<div class="cartes">
+      ${orient('lit', 'Hospitalisés', 'Hospitalisé')}${orient('sortie', 'Externes (retour à domicile)', 'Externe')}${orient('oeil', 'Mises en observation (MEO)', 'MEO')}${orient('envoi', 'Référés', 'Référé')}
+      ${orient('croix', 'Décès', 'Décédé')}
+      ${carte({ ico: 'age', titre: 'Âge médian', valeur: med === null ? '—' : med < 24 ? `${Math.round(med)}<small>mois</small>` : `${nb(med / 12, 0)}<small>ans</small>`, note: 'répartition par tranche d’âge',
+        graphe: barres(tranches, { fmt: (v) => nb(v, 0), unite: ' patients' }), grand: grandBarres(tranches, { titreY: 'Patients', explication: 'Nombre de patients par tranche d’âge.' }) })}
+      ${carte({ ico: 'bebe', titre: 'Enfants (moins de 15 ans)', valeur: `${ages.length ? Math.round(100 * moins15 / ages.length) : 0}<small>%</small>`, note: `${moins15} sur ${ages.length} d’âge connu · enfants et adultes ont des modèles séparés`, graphe: jauge(ages.length ? moins15 / ages.length : 0) })}
+      ${carte({ ico: 'sexe', titre: 'Femmes / hommes', valeur: `${F}<small>/</small> ${H}`, note: `${H ? nb(F / H, 2) : '—'} femme(s) par homme`, graphe: repartition([{ l: 'Femmes', v: F, c: BLEU }, { l: 'Hommes', v: H, c: NOIR }]),
+        grand: grandBarres([{ l: 'Femmes', v: F }, { l: 'Hommes', v: H }], { titreY: 'Patients', explication: 'Nombre de femmes et d’hommes.' }) })}
+    </div>`
+  }
+
+  // « Comment lire » de la Synthèse pour un registre de passages (les textes d'origine parlent de séjours).
+  const LECTURE_PASSAGES = {
+    'Votre saisie': 'une ligne = un <b>passage aux urgences</b>, avec sa date et la <b>décision d’orientation</b> (hospitalisé, externe, mise en observation, référé, décédé). Il n’y a ni date d’entrée ni date de sortie d’hospitalisation : ce registre ne sert pas à l’occupation des lits mais au <b>triage</b>. La part des <b>constantes relevées</b> dit quelles variables le modèle de triage pourra utiliser ; un mois gris est un mois sans aucun passage saisi.',
+    'Patients et qualité des soins': 'proportions calculées sur tous les passages saisis. Chaque carte suit une décision d’orientation mois par mois. Enfants et adultes passent par les mêmes urgences mais auront des <b>modèles de triage séparés</b> (constantes et seuils différents) : la part des moins de 15 ans dit combien de passages relèvent de chacun.',
+  }
+  for (const sec of ONGLETS.find((o) => o.nom === 'Synthèse')?.sections ?? []) {
+    const rendre0 = sec.rendre
+    sec.rendre = (c, Wd, Hd) => { const res = rendre0(c, Wd, Hd); if (sansSejours() && LECTURE_PASSAGES[sec.t] && res) res.lecture = LECTURE_PASSAGES[sec.t]; return res }
+  }
+
   htmlSaisie = function ({ d, st }) {      // eslint-disable-line no-global-assign
+    if (sansSejours()) return htmlSaisiePassages({ st })
     const mois = moisSt(st), s = d.statuts ?? {}, trous = []
     for (let a = +(mois[0] ?? '0').slice(0, 4), m = +(mois[0] ?? '00-00').slice(5); mois.length && `${a}-${String(m).padStart(2, '0')}` <= mois.at(-1); m === 12 ? (a++, m = 1) : m++) {
       const k = `${a}-${String(m).padStart(2, '0')}`; if (!st.parMois[k]) trous.push(k)
@@ -359,6 +445,7 @@
 
   // ── Patients et qualité des soins ─────────────────────────────────────────────────────
   htmlQualite = function ({ st }) {      // eslint-disable-line no-global-assign
+    if (sansSejours()) return htmlQualitePassages({ st })
     const n = st.n || 0, pct = (k) => (n ? 100 * (st.issues[k] ?? 0) / n : null)
     const transf = Object.values(st.parMois).reduce((a, s) => a + s.transf, 0)
     const ages = Object.entries(st.ages), totAge = ages.reduce((a, [, s]) => a + s.M + s.F, 0)
