@@ -146,9 +146,11 @@ window.REGISTRES = {
     ]
   },
 
-  // Registre des urgences n° 2 (septembre 2025 → janvier 2026) : la décision y est écrite.
-  // Le nom n'est jamais saisi. Le diagnostic est écrit APRÈS l'examen : il ne servira pas à
-  // prévoir la décision (fuite d'information), seulement à décrire les patients.
+  // Registre des urgences (juillet 2025 → janvier 2026) : la décision (orientation) y est écrite.
+  // Le nom, le téléphone et le médecin ne sont JAMAIS saisis. Les lignes n'ont pas de date : elle est
+  // écrite en titre de chaque garde (« Garde du 25 au 26 janvier 2026 », « Permanence 23/12 »).
+  // Le diagnostic est écrit APRÈS l'examen : il ne servira pas à prévoir la décision (fuite
+  // d'information), seulement à décrire les patients.
   URG: {
     nom: 'Urgences (registre 2)',
     ordre: 'n_ordre',
@@ -157,11 +159,16 @@ window.REGISTRES = {
       { k: 'n_ordre', l: "N° d'ordre", court: true, tableau: true,
         aide: 'Numéro de la ligne s’il est écrit ; sinon laissez l’outil numéroter.' },
       { k: 'date_passage', l: 'Date de passage', date: true, court: true, tableau: true,
-        aide: 'Jour où l’enfant ou l’adulte est passé aux urgences.' },
+        aide: 'Date de la garde écrite en titre (premier jour : « Garde du 25 au 26/01 » → 25/01/26).' },
+      { k: 'moment', l: 'Garde', court: true,
+        raccourcis: ['Jour', 'Garde', 'Permanence'],
+        aide: 'Titre de la section : Jour (journée), Garde (nuit, « Garde du … au … »), Permanence (week-end ou férié). Vide si aucun titre.' },
       { k: 'sexe', l: 'Sexe', court: true,
         aide: 'M (♂) ou F (♀).' },
       { k: 'age', l: 'Âge', court: true, tableau: true,
-        aide: 'Avec l’unité, comme écrit : 4 ans, 9 mois, 35 ans.' },
+        aide: 'Avec l’unité, comme écrit : 4 ans, 9 mois, 35 ans. Un nombre seul est en années.' },
+      { k: 'profession', l: 'Profession', court: true,
+        aide: 'Comme écrite : élève, commerçant, NRS (nourrisson), enfant, sans emploi…' },
       { k: 'residence', l: 'Résidence', court: true,
         aide: 'Quartier de résidence.' },
       { k: 'pouls', l: 'Pouls', court: true,
@@ -174,14 +181,20 @@ window.REGISTRES = {
         aide: 'En kg (ex. 14,5).' },
       { k: 'temperature', l: 'Température', court: true,
         aide: 'En °C, comme écrite (ex. 39,2).' },
-      { k: 'symptomes', l: 'Symptômes', tableau: true, separateur: ', ',
+      { k: 'fr', l: 'FR', court: true,
+        aide: 'Fréquence respiratoire (cycles/min), si elle est écrite.' },
+      { k: 'spo2', l: 'SpO2', court: true,
+        aide: 'Saturation en oxygène (%), si elle est écrite.' },
+      { k: 'symptomes', l: 'Plaintes', tableau: true, separateur: ', ',
         raccourcis: ['Fièvre', 'Toux', 'Vomissements', 'Diarrhée', 'Convulsions', 'Douleur abdominale', 'Céphalées', 'Dyspnée', 'Pâleur'],
         aide: 'Motif et symptômes, recopiés tels quels.' },
       { k: 'diagnostic', l: 'Diagnostic',
         aide: 'Diagnostic écrit par le médecin des urgences.' },
+      { k: 'n_dossier', l: 'N° dossier', court: true,
+        aide: 'Numéro à 6 chiffres écrit avant l’orientation (ex. 384926).' },
       { k: 'decision', l: 'Décision', court: true, tableau: true,
         raccourcis: ['Hospitalisé', 'MEO', 'Externe', 'Référé', 'Décédé', 'SCAM'],
-        aide: 'Ce qui a été décidé : hospitalisé (préciser le service si écrit), MEO, externe/retour à domicile, référé…' },
+        aide: 'Colonne Orientation : Ext → Externe, Hosp → Hospitalisé (service si écrit), MEO, Référé, croix † → Décédé.' },
       { k: 'remarque', l: 'Remarque de saisie',
         aide: 'Pour vous : ligne barrée, doute… (facultatif).' }
     ]

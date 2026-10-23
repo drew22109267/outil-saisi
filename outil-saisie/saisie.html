@@ -725,7 +725,7 @@
   </section>
 </div>
 
-<script src="registres.js?v=34"></script>
+<script src="registres.js?v=35"></script>
 <script>
 // ── Utilitaires ──────────────────────────────────────────────
 const $ = (s) => document.querySelector(s)
@@ -1493,8 +1493,10 @@ $('#importer').addEventListener('change', async (e) => {
   if (index.filter((i) => i >= 0).length < colonnes().length / 2) {
     message(`Ce fichier ne correspond pas au registre de ${registre().nom}. Choisissez le bon service avant de le reprendre.`, 'alerte'); return
   }
+  // Colonne « Photo » (transcriptions) : chaque ligne garde le lien vers sa photo d'origine.
+  const iPhoto = entete.map(normCol).indexOf(normCol('Photo'))
   const nouvelles = lignes.map((v) => {
-    const l = { photo: '', service: etat.service }
+    const l = { photo: iPhoto >= 0 ? String(v[iPhoto] ?? '').trim() : '', service: etat.service }
     colonnes().forEach((c, j) => { l[c.k] = index[j] >= 0 ? String(v[index[j]] ?? '').trim() : '' })
     completerLigne(l, v, extra)
     return l
@@ -2268,6 +2270,8 @@ function ageEnMois(texte) {
   const m = t.match(/(\d+(?:\.\d+)?)\s*mo/); if (m) { mois += parseFloat(m[1]); trouve = true }
   const s = t.match(/(\d+)\s*sem/); if (s) { mois += parseInt(s[1], 10) / 4.35; trouve = true }
   const j = t.match(/(\d+)\s*j/); if (j && !a && !m) { mois += parseInt(j[1], 10) / 30.4; trouve = true }
+  // Un nombre seul est en années (« 35 »), comme le dit l'aide de la colonne Âge.
+  const seul = t.match(/^\s*(\d+(?:\.\d+)?)\s*$/); if (!trouve && seul) { mois = 12 * parseFloat(seul[1]); trouve = true }
   return trouve ? mois : null
 }
 // Issue lue dans « Observation » (et « Remarque » pour les décès écrits en marge).
@@ -2409,7 +2413,7 @@ else { construireFormulaire(); majSuggestions(); majListePhotos(); sauver(); nou
 </script>
 <script src="calendrier.js?v=1"></script>
 <script src="statistiques.js?v=12"></script>
-<script src="indicateurs.js?v=63"></script>
+<script src="indicateurs.js?v=64"></script>
 <script src="occupation-validation.js?v=12"></script>
 <script src="temps.js?v=5"></script>
 <script src="legende.js?v=1"></script>

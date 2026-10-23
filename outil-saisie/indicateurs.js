@@ -581,9 +581,11 @@ function dureeEcrite(l) {
   if (e && s) { const v = jourNum(s.d) - jourNum(e.d); return v >= 0 && v < 365 ? v : null }
   const n = nombre(l.nb_jours); return n !== null && n >= 0 && n < 365 ? n : null
 }
-const issueUrg = (l) => { const t = String(l.decision ?? '').toLowerCase(); return !t.trim() ? null : /d[ée]c[ée]d/.test(t) ? 'Décédé' : /r[ée]f[ée]r/.test(t) ? 'Référé' : /scam/.test(t) ? 'SCAM' : /hospit/.test(t) ? 'Hospitalisé' : /meo|observ/.test(t) ? 'MEO' : /extern/.test(t) ? 'Externe' : 'Autre' }
+// Décision des urgences, écrite en entier ou abrégée comme dans le registre (Hosp, Ext, croix † = décédé).
+const issueUrg = (l) => { const t = String(l.decision ?? '').toLowerCase(); return !t.trim() ? null : /d[ée]c[ée]d|d[ée]c[eè]s|dcd|†/.test(t) ? 'Décédé' : /r[ée]f[ée]r|transf[ée]r|[ée]vacu/.test(t) ? 'Référé' : /scam|contre avis/.test(t) ? 'SCAM' : /hosp/.test(t) ? 'Hospitalisé' : /meo|observ/.test(t) ? 'MEO' : /\bext|domicile/.test(t) ? 'Externe' : 'Autre' }
 const issueDeLigne = (l) => (aCol('decision') ? issueUrg(l) : issueDe(l) === 'Non renseignée' ? null : issueDe(l))
-const TA = (l, i) => { const m = String(l.ta ?? '').match(/(\d{2,3})\s*[/\-]\s*(\d{2,3})/); return m ? +m[i] : null }
+// TA en mmHg ; « 12/8 » est écrit en cmHg (systolique < 30) : × 10.
+const TA = (l, i) => { const m = String(l.ta ?? '').replace(/,/g, '.').match(/(\d{1,3}(?:\.\d)?)\s*[/\-]\s*(\d{1,3}(?:\.\d)?)/); if (!m) return null; return +m[i] * (+m[1] < 30 ? 10 : 1) }
 const VARS_PATIENT = [
   { k: 'age', nom: 'Âge (mois)', f: (x) => ageEnMois(x.l.age) },
   { k: 'duree', nom: 'Durée de séjour (jours écrits)', col: 'nb_jours', f: (x) => dureeEcrite(x.l) },
@@ -597,6 +599,8 @@ const VARS_PATIENT = [
   { k: 'glycemie', nom: 'Glycémie', col: 'glycemie', f: (x) => nombre(x.l.glycemie) },
   { k: 'poids', nom: 'Poids (kg)', col: 'poids', f: (x) => nombre(x.l.poids) },
   { k: 'temperature', nom: 'Température (°C)', col: 'temperature', f: (x) => nombre(x.l.temperature) },
+  { k: 'fr', nom: 'Fréquence respiratoire (/min)', col: 'fr', f: (x) => nombre(x.l.fr) },
+  { k: 'spo2', nom: 'SpO2 (%)', col: 'spo2', f: (x) => nombre(x.l.spo2) },
   { k: 'sexe', nom: 'Garçon (1) / fille (0)', bin: true, f: (x) => binaire(x.l.sexe, /^\s*m/i, /^\s*f/i) },
   { k: 'nouveau', nom: 'Nouveau (1) / ancien (0)', bin: true, col: 'ancien_nouveau', f: (x) => binaire(x.l.ancien_nouveau, /^\s*n/i, /^\s*a/i) },
   { k: 'transf', nom: 'Transfusé (1 = oui)', bin: true, col: 't3_recu', f: (x) => (x.l.t3_recu?.trim() ? (/transfus/i.test(x.l.t3_recu) ? 1 : 0) : null) },
@@ -612,6 +616,7 @@ const VARS_QUALI = [
   { k: 'cause', nom: 'Grande cause', f: (x) => { const c = causeDe(x.l); return c === 'Non renseigné' ? null : c } },
   { k: 'issue', nom: 'Issue / décision', f: (x) => issueDeLigne(x.l) },
   { k: 'jour', nom: 'Jour d’arrivée', f: (x) => JOURS_SEMAINE[jourSemaine(x.j)] },
+  { k: 'garde', nom: 'Garde (jour, nuit, permanence)', col: 'moment', f: (x) => { const t = String(x.l.moment ?? '').toLowerCase(); return /perm/.test(t) ? 'Permanence' : /garde|nuit/.test(t) ? 'Garde de nuit' : /jour/.test(t) ? 'Jour' : null } },
   { k: 'mois', nom: 'Mois d’arrivée', f: (x) => etiquettePeriode(versDate(x.j).slice(0, 7)) },
   { k: 'nouveau', nom: 'Ancien / nouveau', col: 'ancien_nouveau', f: (x) => (/^\s*n/i.test(x.l.ancien_nouveau ?? '') ? 'Nouveau' : /^\s*a/i.test(x.l.ancien_nouveau ?? '') ? 'Ancien' : null) },
   { k: 'ge', nom: 'Résultat GE / TDR', col: 'ge_tdr', f: (x) => { const t = x.l.ge_tdr ?? ''; return /\+/.test(t) ? 'Positif' : /−|-|n[ée]g/i.test(t) ? 'Négatif' : null } },
