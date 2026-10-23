@@ -81,7 +81,7 @@
     const options = `<label class="ind-case" style="flex:1 1 100%">Comptages réels (cahier de garde, relève…) : <input class="input" style="flex:1;min-width:280px" data-o="comptages" value="${echapper(c.opts.comptages ?? '')}" placeholder="12/12/24=14; 05/01/25=11; 20/07/25=6"></label>`
     const series = [{ nom: enJournee() ? 'Comptage journalier (registre)' : 'Recensement de minuit (registre)', valeurs: d.presents, couleur: COUL.bleu, epaisseur: 1.6 }, { nom: 'Bilan des flux', valeurs: P, couleur: COUL.orange, epaisseur: 1.4, pointille: '5 3' }]
     if (comptes.length) series.push({ nom: 'Série recalée sur les comptages', valeurs: recale, couleur: COUL.vert, epaisseur: 2 })
-    return { options,
+    return { options, mesures: { ecartMax, comptes: comptes.length, ecartMoy: ecarts.length ? ecarts.reduce((a, b) => a + b, 0) / ecarts.length : NaN, ecartAbs: ecarts.length ? ecarts.reduce((a, b) => a + Math.abs(b), 0) / ecarts.length : NaN },
       avant: bandeauStats([['Entrées sur la période', nf(A.reduce((a, b) => a + b, 0), 0)], ['Sorties sur la période', nf(S.reduce((a, b) => a + b, 0), 0)], ['Écart maximal flux / recensement', `${nf(ecartMax, 3)} enfant`], ...(comptes.length ? [['Comptages réels', comptes.length], ['Écart moyen (réel − registre)', `${ecarts.reduce((a, b) => a + b, 0) / ecarts.length >= 0 ? '+' : ''}${nf(ecarts.reduce((a, b) => a + b, 0) / ecarts.length, 1)} enfant(s)`], ['Écart absolu moyen', nf(ecarts.reduce((a, b) => a + Math.abs(b), 0) / ecarts.length, 1)]] : [])]),
       html: `${lignesSvg({ W, H, debutNum: deb, series, refs: c.lits ? [{ nom: `${c.lits} lits`, valeur: c.lits, couleur: COUL.rouge }] : [], titreY: 'Enfants présents', verticales: comptes.map((k) => ({ i: k.jour - deb, nom: '' })) })}
         ${comptes.length ? `<div style="margin-top:10px">${tableau(['Date', 'Comptage réel', 'Reconstitué (registre)', 'Écart', 'Écart relatif'], lignesComptes)}</div>` : ''}`,
@@ -128,7 +128,7 @@
     const N = +c.opts.mcN || 300, R = simulerMC(c, N), lits = c.lits, ic = (v, k = 1) => `${nf(quantileTrie(v, 0.5), k)} [${nf(quantileTrie(v, 0.025), k)} ; ${nf(quantileTrie(v, 0.975), k)}]`
     const litsMoy = c.d.litsJour?.length ? c.d.litsJour.reduce((a, b) => a + b, 0) / c.d.litsJour.length : lits
     const tom = (v) => (lits ? v.map((m) => 100 * m / litsMoy) : [])            // capacité moyenne si elle a changé
-    return { options: libelle('Nombre de tirages', choix('mcN', N, [[100, '100 (rapide)'], [300, '300'], [1000, '1 000 (précis, plus lent)']])),
+    return { mesures: { R, lits, litsMoy }, options: libelle('Nombre de tirages', choix('mcN', N, [[100, '100 (rapide)'], [300, '300'], [1000, '1 000 (précis, plus lent)']])),
       avant: bandeauStats([['Séjours de durée incertaine tirés au hasard', R.incertains], ['Présents moyens [IC 95 %]', ic(R.moyennes, 2)], ...(lits ? [['Taux d’occupation [IC 95 %]', `${ic(tom(R.moyennes))} %`], ['Jours en sureffectif [IC 95 %]', ic(R.sur, 0)], ['Probabilité d’au moins un jour > lits', `${nf(100 * R.pDepasse, 0)} %`]] : []), ['Maximum [IC 95 %]', ic(R.maxi, 0)]]),
       html: lignesSvg({ W, H, debutNum: c.d.debutNum, series: [{ nom: 'Médiane des simulations', valeurs: R.q50, couleur: COUL.violet, epaisseur: 2.2 }, { nom: 'Calcul principal', valeurs: c.d.presents, couleur: COUL.orange, epaisseur: 1.3 }],
         bandes: [{ nom: '90 % des simulations (5e – 95e centile)', bas: R.q05, haut: R.q95, couleur: COUL.cyan, opacite: 0.3 }], refs: lits ? [{ nom: `${lits} lits`, valeur: lits, couleur: COUL.rouge }] : [], titreY: 'Enfants présents' }),
@@ -179,7 +179,7 @@
     const xmax = Math.min(30, Math.max(7, ...km.map((k) => k.q3 * 2 || 10))), cou = [COUL.bleu, COUL.rouge, COUL.vert, COUL.orange, COUL.violet]
     const series = km.map((k, i) => ({ nom: `${k.nom} (${k.n})`, pts: k.pts.filter((p) => p.t <= xmax).map((p) => [p.t, p.S]).concat([[xmax, k.pts.filter((p) => p.t <= xmax).at(-1).S]]), couleur: cou[i % cou.length], escalier: true }))
     const bandes = km.length === 1 ? [{ nom: 'IC 95 % (Greenwood)', pts: km[0].pts.filter((p) => p.t <= xmax).map((p) => [p.t, p.bas, p.haut]), couleur: COUL.bleu, escalier: true, opacite: 0.15 }] : []
-    return { options: libelle('Comparer selon', choix('kmStrate', c.opts.kmStrate, Object.entries(STRATES).map(([k, [n]]) => [k, n]))),
+    return { mesures: { km, lr, strate: STRATES[c.opts.kmStrate][0], nObs: obs.length, censures: obs.filter((o) => !o.e).length, manquants }, options: libelle('Comparer selon', choix('kmStrate', c.opts.kmStrate, Object.entries(STRATES).map(([k, [n]]) => [k, n]))),
       avant: bandeauStats([['Séjours analysés', obs.length], ['dont censurés (encore hospitalisés)', obs.filter((o) => !o.e).length], ['Exclus (parti sans date ni durée)', manquants], ...(lr ? [['Log-rank', `χ² = ${nf(lr.chi2, 1)} · ddl ${lr.ddl} · p ${fp(lr.p)}`]] : [])]),
       html: `${courbesXY({ W, H, series, bandes, xmin: 0, xmax, ymin: 0, ymax: 1, titreX: 'Nuits depuis l’entrée', titreY: 'Proportion encore hospitalisée' })}
         <div style="margin-top:10px">${tableau(['Groupe', 'Séjours', 'Sorties observées', 'Censurés', 'Médiane (nuits)', 'Q1 – Q3', 'Encore là à 3 nuits', 'Encore là à 7 nuits', 'Durée moyenne (≤ 30 nuits)'],
@@ -207,7 +207,10 @@
       const moy = ks.reduce((a, k) => a + k * dist[k], 0), va = ks.reduce((a, k) => a + (k - moy) ** 2 * dist[k], 0)
       return [nom, nf(moy, 2), nf(va, 2), ...seuils.map((s) => `${nf(100 * queue(dist, s), 1)} %`)]
     })
-    return { avant: bandeauStats([['λ admissions / jour', nf(lam, 2)], [d.reglages?.decal ? 'W durée moyenne (jours de présence)' : 'W durée moyenne (nuits)', nf(Wm, 2)], ['λ·W (moyenne théorique)', nf(lam * Wm, 2)], ['Moyenne observée', nf(m, 2)], ['Variance observée', nf(v, 2)], ['Indice de dispersion (variance ÷ moyenne)', nf(v / m, 2)]]),
+    // Distance entre la loi observée et chaque loi théorique (variation totale : ½ Σ |écart|, de 0 à 1).
+    const vt = (dist) => ks.reduce((a, k) => a + Math.abs(obs[k] - dist[k]), 0) / 2
+    return { mesures: { disp: v / m, lam, Wm, m, vtPois: vt(pois), vtMel: vt(melange), vtBn: vt(bn), seuils, qObs: seuils.map((s) => queue(obs, s)), qPois: seuils.map((s) => queue(pois, s)), qBn: seuils.map((s) => queue(bn, s)) },
+      avant: bandeauStats([['λ admissions / jour', nf(lam, 2)], [d.reglages?.decal ? 'W durée moyenne (jours de présence)' : 'W durée moyenne (nuits)', nf(Wm, 2)], ['λ·W (moyenne théorique)', nf(lam * Wm, 2)], ['Moyenne observée', nf(m, 2)], ['Variance observée', nf(v, 2)], ['Indice de dispersion (variance ÷ moyenne)', nf(v / m, 2)]]),
       html: `${courbesXY({ W, H, xmin: -0.5, xmax: kmax + 0.5, ymin: 0, ymax: Math.max(...obs, ...pois, ...melange) * 1.15, titreX: `Nombre d’enfants ${enJournee() ? 'présents dans la journée' : 'présents à minuit'}`, titreY: 'Part des jours',
           barres: [{ nom: 'Observé', pts: ks.map((k) => [k, obs[k]]), couleur: COUL.bleu, opacite: 0.55 }],
           series: [{ nom: 'Poisson (λ·W)', pts: ks.map((k) => [k, pois[k]]), couleur: COUL.rouge, points: true }, { nom: 'Mélange par mois', pts: ks.map((k) => [k, melange[k]]), couleur: COUL.vert, points: true }, { nom: 'Binomiale négative', pts: ks.map((k) => [k, bn[k]]), couleur: COUL.violet, pointille: '5 3' }] })}
@@ -340,7 +343,7 @@
     const certains = lits ? jours.filter((i) => bas[i] > L(i)).length : 0, possibles = lits ? jours.filter((i) => haut[i] > L(i)).length : 0
     const attendus = R.pSur.reduce((a, b) => a + b, 0)
     const tableauJours = rang.slice(0, 12).map((i) => [fmtDate(versDate(P.deb + i)), nf(P.plein[i] + P.S[i], 1), nf(P.S[i], 1), nf(P.A[i], 1), nf(P.M[i], 1), nf(bas[i], 1), nf(haut[i], 1), nf(R.picMoy[i], 2), lits ? `${nf(100 * R.pSur[i], 1)} %` : '—'])
-    return { options,
+    return { options, mesures: { attendus, certains, possibles, moyP, litsMoy, picMoyen: R.picMoy.reduce((a, b) => a + b, 0) / n, icBas: ic(0.025), icHaut: ic(0.975), f, n },
       avant: bandeauStats([['Hypothèse', `sorties ${f.s1}–${f.s2} h · entrées ${f.e1}–${f.e2} h · même jour ${nf(f.m, 1)} h`], ['Présence moyenne (pondérée par les heures)', `${nf(moyP, 2)}${lits ? ` · TOM ${nf(100 * moyP / litsMoy, 1)} %` : ''}`],
         ...(lits ? [['Jours en surnombre attendus', `${nf(attendus, 2)} [${ic(0.025)} ; ${ic(0.975)}]`], ['Surnombre certain (sans hypothèse)', `${certains} j`], ['Surnombre possible (sans hypothèse)', `${possibles} j`]] : []),
         ['Pic moyen de la journée', nf(R.picMoy.reduce((a, b) => a + b, 0) / n, 2)]]),

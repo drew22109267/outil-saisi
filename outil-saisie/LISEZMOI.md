@@ -230,11 +230,13 @@ au-delà, la saisie est à reprendre. Le contrôle se fait en plusieurs séances
   année) et Calcul ; à droite Affichage, le service et le bouton profil (sauvegarde, aide).
 - **En-tête de chaque carte** : l'icône livre affiche ou masque son « Comment lire » (le menu Affichage règle toutes
   les cartes d'un coup) ; les icônes triangle (avertissements) et i (remarques), avec leur nombre, ouvrent le détail.
-- **Conclusion pour le modèle** : sous chaque analyse qui décide d'un choix du modèle NERA (rythme de la
-  semaine, mémoire de la série, stationnarité, dispersion, fériés, barre à battre, cohérence de Little, pic…), un
-  encadré calculé sur vos données : Constat, Décision pour le modèle, À faire (avec le banc d'essai qui vérifie).
-  La rubrique « Conclusions pour le modèle » de la Synthèse les rassemble en un tableau. Menu Affichage pour les
-  masquer. Pour le registre des urgences, les conclusions portent sur le triage (constantes utilisables, cible).
+- **Conclusion pour le modèle** : sous chaque analyse de chaque rubrique, un encadré calculé sur vos données,
+  en quatre temps : **Constat** (les chiffres), **Ce que cela signifie** (leur sens, en clair), **Décision pour le
+  modèle NERA** (ce que cela change pour le SVR du module lit ou pour le modèle de triage) et **Démarche à suivre**
+  (quoi faire selon le résultat, avec le banc d'essai D, P ou T qui vérifie). Une analyse pas encore calculable dit
+  ce qui manque et comment le compléter. La rubrique « Conclusions pour le modèle » de la Synthèse rassemble en un
+  tableau toutes celles qui ne demandent pas de simulation. Menu Affichage pour les masquer. Pour le registre des
+  urgences, les conclusions portent sur le triage (constantes utilisables, cible, enfants et adultes, coûts).
 - **Registre des urgences** (passages, sans date d'entrée ni de sortie d'hospitalisation) : la Synthèse montre les
   passages, les constantes relevées, l'orientation décidée et les patients, pas de durée de séjour. En haut, le nombre de lignes et l'heure du dernier calcul
   (« +3 depuis la dernière fois »).
