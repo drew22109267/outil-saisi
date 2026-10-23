@@ -1708,7 +1708,8 @@ function dessinerVue() {
   etat.indSous ??= {}
   let sous = etat.indSous[onglet.nom] ?? 'tout'
   if (sous !== 'tout' && !sections[sous]) sous = 'tout'
-  const libelleSous = sous === 'tout' ? `Toutes <span class="nb">${sections.length}</span>` : `<span class="nb">${sous + 1}</span>${sections[sous].t}`
+  // Libellé court (numéro sur total) : le nom complet est dans l'info-bulle, la liste et le titre de la section.
+  const libelleSous = sous === 'tout' ? `Toutes <span class="nb">${sections.length}</span>` : `<span class="nb">${sous + 1}</span><span class="ind-sur">sur ${sections.length}</span>`
   const prec = sous === 'tout' ? null : sous > 0 ? sous - 1 : 'tout', suiv = sous === 'tout' ? 0 : sous < sections.length - 1 ? sous + 1 : null
   $('#indFiltre').innerHTML = `<span class="ind-filtre-k">Statistique</span>
     <div class="ind-filtre-groupe">

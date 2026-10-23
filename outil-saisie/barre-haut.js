@@ -42,7 +42,19 @@
   .carte-sauv.a-faire p { color: var(--sev-2-ink) !important; }
   .carte-sauv .btn { background: var(--noir) !important; color: #fff !important; min-height: 32px; margin-top: 2px !important; }
   .carte-sauv .btn:hover { background: #2a2c30 !important; }
-  @media (max-width: 1180px) { .topbar .field > span { display: none; } }
+  /* Statistique : sans l'étiquette, bouton compact « 1 sur 9 » (le nom complet est dans l'info-bulle et la liste) */
+  .topbar .ind-filtre-k { display: none; }
+  .topbar .ind-menu-btn { max-width: none; padding: 4px 8px; }
+  .topbar .ind-menu-btn .ind-sur { color: var(--muted); font-weight: 500; }
+  .topbar .ind-menu-liste { width: min(400px, 90vw); }
+  .topbar #service { min-width: 130px; }
+  .topbar .spacer { min-width: 8px; }
+  @media (max-width: 1500px) { .topbar .field > span { display: none; } }
+
+  /* Barres de défilement : fines, sans flèches, piste transparente, comme dans les applications courantes */
+  * { scrollbar-width: thin; scrollbar-color: #c4c8ce transparent; }
+  /* Indicateurs : la zone qui défile va jusqu'au bord droit et au bas de la fenêtre, la barre y est collée */
+  #vueIndicateurs #indZone { margin-right: -24px; padding-right: 24px; margin-bottom: -16px; padding-bottom: 24px; }
   @media (max-width: 700px) { .topbar { flex-wrap: wrap; } .topbar .ind-tete-droite { order: 10; flex-basis: 100%; flex-wrap: wrap; } }
   ` }))
 
