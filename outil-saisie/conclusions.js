@@ -19,6 +19,7 @@
   .ind-conclusion-k svg { color: var(--brand); }
   .ind-conclusion p { margin: 3px 0; }
   .ind-conclusion p b { color: var(--ink); }
+  .ind-conclusion-k .ind-etape { font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--muted); }
   .ind-conclusions-masquees .ind-conclusion { display: none; }
   .ind-recap td { vertical-align: top; white-space: normal !important; min-width: 160px; }
   .ind-recap td:first-child { font-weight: 600; white-space: nowrap !important; min-width: 0; }
@@ -710,9 +711,113 @@
         faire: 'Compléter les mois cités ; garder le découpage par mois (apprentissage puis calibrage) du protocole.' } } },
   ]
 
+  // ════════════════════════════════════════════════════════════════════════════════════════
+  // Place de chaque analyse dans le projet IA : étape, rôle, lien avec le prétraitement, et ce que le résultat
+  // apporte à l'étape suivante. Un projet d'apprentissage suit toujours les mêmes étapes ; chaque analyse de
+  // l'outil sert l'une d'elles, et son résultat conditionne la suivante.
+  // ════════════════════════════════════════════════════════════════════════════════════════
+  const ETAPES = {
+    1: ['Collecte et contrôle de la qualité', 'Le résultat dit si les données sont assez complètes et justes pour passer au prétraitement ; une donnée fausse ici se propage à toutes les étapes suivantes.'],
+    2: ['Prétraitement', 'Le résultat fixe un réglage du prétraitement (comment la série cible ou les variables sont fabriquées) ; ce réglage est ensuite vérifié par un banc P (ou T pour le triage).'],
+    3: ['Analyse exploratoire', 'Le résultat oriente la construction des variables et le choix du modèle : il dit quelle structure (mémoire, saison, non-linéarité, liens) le modèle devra apprendre.'],
+    4: ['Construction des variables', 'Le résultat dit quelles variables donner au modèle ; le banc D5 (ou T4) les garde seulement si elles réduisent l’erreur sur des données jamais vues.'],
+    5: ['Choix du modèle et de la perte', 'Le résultat justifie la forme du modèle (noyau, perte, quantile) ; les bancs D1 à D4 et D8 (ou T2, T3) comparent les candidats sur la validation glissante.'],
+    6: ['Validation et évaluation', 'Le résultat fixe la barre à battre et la façon de mesurer l’erreur ; le modèle final est jugé une seule fois sur la période verrouillée (à partir du 01/09/2026).'],
+    7: ['Décision et mise en service', 'Le résultat traduit les prévisions en décisions pour le service (lits, alertes, personnel) et sert à présenter le modèle dans le langage de l’hôpital.'],
+  }
+  // [étape, à quoi sert l'analyse, lien avec le prétraitement (vide si aucun)]
+  const ROLES = {
+    'Votre saisie': [1, 'Vérifier que la saisie couvre la période sans trou et que les durées de séjour sont connues : c’est la matière première de tout le reste.', 'Fixe les réglages « durées inconnues » (P1), « période exploitable » (P5) et « trous de saisie » (P7).'],
+    'Chiffres clés de l’occupation': [7, 'Résumer la série cible (présents à minuit) et la charge du service en indicateurs officiels.', 'Ces chiffres dépendent de la méthode de comptage (P8) et de la convention du nombre de jours (P3).'],
+    'Patients et qualité des soins': [1, 'Décrire qui est hospitalisé et comment les séjours se terminent ; repérer les issues non renseignées.', 'L’issue sert à estimer la durée des séjours sans sortie écrite (P1) ; elle n’est jamais une entrée du modèle (fuite d’information).'],
+    'Variables numériques des patients': [3, 'Décrire chaque variable mesurée (centre, dispersion, forme, valeurs atypiques, manquants).', 'Révèle les valeurs à corriger, les manquants à imputer et les variables à transformer (log, standardisation).'],
+    'Variables numériques journalières': [3, 'Décrire la série à prévoir et les flux jour par jour.', 'La forme de la série dit si une transformation est utile avant le modèle et comment calculer les intervalles.'],
+    'Distribution d’une variable': [3, 'Voir la forme exacte d’une variable : symétrie, queue, normalité, atypiques.', 'Une forte asymétrie appelle une transformation log(1 + x) ou une standardisation robuste avant le modèle (D6).'],
+    'Variables qualitatives : effectifs et proportions': [3, 'Compter les modalités de chaque variable qualitative et juger la fiabilité des proportions.', 'Les modalités rares sont à regrouper avant encodage ; une colonne très incomplète ne peut pas être une entrée.'],
+    'Comparaison d’une variable entre groupes': [3, 'Tester si une variable change selon un groupe (cause, issue, âge…).', ''],
+    'Matrice de corrélation — patients': [3, 'Repérer les variables liées entre elles (redondance) et liées à la cible.', 'Deux variables redondantes : en garder une pour un modèle linéaire (colinéarité).'],
+    'Matrice de corrélation — variables journalières': [4, 'Mesurer le lien entre la série à prévoir et ses candidates (retards, flux, calendrier).', 'Les retards et moyennes mobiles sont calculés uniquement avec le passé du jour t (aucune fuite du futur).'],
+    'Toutes les paires de variables, classées par force du lien': [3, 'Classer tous les liens et séparer les vrais des faux positifs (correction de Holm).', ''],
+    'Nuage de points et droite de régression': [5, 'Voir la forme d’un lien : droite, courbe ou absence de lien.', 'Un lien en courbe peut être redressé par une transformation, ou laissé au noyau RBF.'],
+    'Nuage de points en 3D (trois variables)': [3, 'Explorer trois variables à la fois pour repérer des profils ou des aberrants.', 'Les points isolés sont à vérifier sur la photo avant d’entraîner.'],
+    'Liens entre variables qualitatives (khi-deux, V de Cramér)': [3, 'Tester les liens entre variables qualitatives, dont l’issue.', 'Repère les variables connues seulement après coup (diagnostic de sortie, issue), à exclure des entrées.'],
+    'Tableau croisé': [3, 'Voir quelles combinaisons de modalités portent un lien.', 'Regrouper les modalités à faible effectif avant de conclure.'],
+    'Tests de comparaison de groupes (tous les croisements)': [3, 'Passer en revue toutes les différences entre groupes et garder les robustes.', ''],
+    'Régression linéaire multiple': [5, 'Mesurer ce qu’un modèle linéaire explique, pour savoir si un modèle non linéaire est nécessaire.', 'Le VIF repère la colinéarité à traiter ; les résidus disent si une transformation de la cible est utile.'],
+    'Régression à deux variables : plan ajusté en 3D': [5, 'Voir l’effet propre de deux variables ensemble.', ''],
+    'Jours fériés et vacances scolaires : effet sur les admissions': [4, 'Mesurer l’effet du calendrier sur les arrivées.', 'Les jours fériés et vacances sont des variables connues à l’avance : aucune fuite du futur.'],
+    'Corrélation croisée : admissions → présents': [4, 'Mesurer combien de jours une admission pèse sur l’occupation.', 'Fixe la profondeur des variables « admissions des 3 et 7 derniers jours ».'],
+    'Variables, adéquation (KMO, Bartlett) et valeurs propres': [3, 'Vérifier si les variables partagent assez d’information pour être résumées.', 'Repère les variables qui varient seules (MSA faible).'],
+    'Éboulis des valeurs propres : combien d’axes garder': [3, 'Compter les dimensions indépendantes dans les données.', ''],
+    'Vue 3D interactive des trois premiers axes (F1, F2, F3)': [3, 'Voir les profils de patients dans l’espace des trois premiers axes.', ''],
+    'Cercle des corrélations': [3, 'Voir quelles variables vont ensemble ou s’opposent.', 'Variables redondantes : une par groupe suffit dans un modèle linéaire.'],
+    'Projection des patients sur le plan factoriel': [1, 'Repérer les patients extrêmes (vrais cas lourds ou erreurs de saisie).', 'Les patients aberrants sont à vérifier sur la photo avant d’entraîner.'],
+    'Corrélations, qualité (cos²) et contributions des variables': [3, 'Dire quelles variables construisent chaque axe.', ''],
+    'Modalités caractéristiques des axes (valeurs-test)': [3, 'Relier les axes aux profils cliniques et à l’issue.', ''],
+    'Interprétation des axes': [3, 'Résumer l’ACP en phrases pour le mémoire.', ''],
+    'Taux d’occupation par période': [3, 'Voir la saison de l’occupation et l’incertitude due aux sorties non écrites.', 'La fourchette mesure l’effet de la convention du nombre de jours (P3) et des durées inconnues (P1).'],
+    'Occupation moyenne et maximale par mois': [5, 'Comparer les pics à la moyenne pour choisir le quantile à prévoir.', ''],
+    'Répartition des jours selon le taux d’occupation': [7, 'Compter les jours tendus et en sureffectif.', ''],
+    'Occupation selon le jour de la semaine': [4, 'Tester si l’occupation suit un rythme hebdomadaire.', ''],
+    'Loi de Little et file d’attente (Erlang B) : contrôle et nombre de lits': [2, 'Contrôler que la série reconstituée est cohérente avec les flux (garde-fou indépendant de tout modèle).', 'Valide l’ensemble du prétraitement (statuts des séjours, imputation, rodage, comptage) : un écart de plus de 10 % le remet en cause.'],
+    'Pic de la journée : plus grand nombre d’enfants présents en même temps': [7, 'Encadrer le vrai besoin en lits au moment le plus chargé.', 'Dépend de la méthode de comptage (P8) : le recensement de minuit en est la borne basse.'],
+    'Occupation heure par heure : pic, surnombre et incertitude (heures inconnues)': [7, 'Estimer le surnombre dans la journée malgré l’absence d’heures dans le registre.', 'Les fenêtres d’heures sont une hypothèse du prétraitement, à faire varier.'],
+    'Bilan des flux (entrées − sorties) et recalage sur des comptages réels': [2, 'Vérifier la reconstitution de l’occupation contre des effectifs réellement comptés.', 'Seule validation externe du prétraitement : un écart systématique impose un recalage de la série cible.'],
+    'Simulation de Monte-Carlo : incertitude de l’occupation': [2, 'Mesurer combien les données manquantes changent la série cible.', 'Teste la robustesse des réglages P1 (durées inconnues) et P3 (convention des jours).'],
+    'Analyse de survie : durée de séjour (Kaplan-Meier, log-rank)': [2, 'Estimer la durée de séjour sans jeter les enfants encore hospitalisés (censurés).', 'Fixe la fenêtre « encore hospitalisé » (P2) et les groupes utiles pour estimer les durées inconnues (P1).'],
+    'Modèle de file M/G/∞ : loi du nombre d’enfants présents': [5, 'Comparer la variabilité réelle de l’occupation au hasard pur.', ''],
+    'Courbe jour par jour (options à cocher)': [3, 'Voir l’allure de la série à prévoir : niveau, tendance, jours exceptionnels.', 'Les jours exceptionnels sont à vérifier (épidémie réelle ou erreur de saisie) avant d’entraîner.'],
+    'Admissions jour par jour': [1, 'Repérer les vagues d’admissions et les trous de saisie.', 'Une suite d’au moins 4 jours sans admission est traitée par le réglage « trous de saisie » (P7).'],
+    'Décomposition : tendance, semaine, imprévus': [3, 'Séparer ce qui est prévisible (tendance, semaine) des imprévus.', ''],
+    'Autocorrélation (ACF)': [4, 'Mesurer la mémoire de la série.', ''],
+    'Autocorrélation partielle (PACF)': [4, 'Choisir combien de jours passés donner au modèle.', ''],
+    'Volatilité : écart-type mobile': [5, 'Voir si l’incertitude change selon les périodes.', ''],
+    'Série étudiée et tests de stationnarité': [2, 'Tester si la série dérive (racine unitaire) ou revient vers un niveau stable.', 'Décide d’une différenciation (SARIMA) et de la fenêtre d’apprentissage (D7) ; la fin de série incomplète est retirée (P6).'],
+    'Tendance, saisonnalité et dispersion (tests)': [3, 'Tester tendance, rythme de la semaine et surdispersion des arrivées.', ''],
+    'Périodogramme : les cycles de la série': [4, 'Chercher les cycles réguliers (semaine, mois).', ''],
+    'Comparaison des modèles sur la période de validation': [6, 'Fixer la barre à battre avec des modèles de référence, sur des jours jamais vus.', 'Toutes les références sont estimées sur la même série prétraitée, sans les jours d’inscription tardive (P6).'],
+    'SARIMA : estimation et prévision': [5, 'Estimer le concurrent statistique classique du SVR.', 'Les ordres d et D viennent des tests de stationnarité.'],
+    'Diagnostic des résidus du SARIMA': [6, 'Vérifier que le SARIMA a capté toute la structure de la série.', ''],
+    'Prévisions de tous les modèles': [7, 'Comparer les prévisions des modèles pour les jours à venir.', ''],
+    'Admissions et sorties par période': [1, 'Contrôler l’équilibre des entrées et sorties et repérer les périodes creuses.', 'Une période creuse est une page manquante : réglages P5 (période exploitable) et P7 (trous).'],
+    'Durée des séjours (en nuits)': [2, 'Décrire les durées de séjour terminées pendant la période de calcul.', 'Les durées connues servent à estimer les durées inconnues (P1) et la fenêtre « encore hospitalisé » (P2 : 95e centile).'],
+    'Durée moyenne de séjour par mois': [3, 'Voir si la durée de séjour change avec le temps.', ''],
+    'Durée moyenne de séjour par cause': [2, 'Comparer les durées selon la cause.', 'Une cause à durée distincte améliore l’estimation des durées inconnues (P1).'],
+    'Durée moyenne de séjour par tranche d’âge': [2, 'Comparer les durées selon l’âge.', 'Une tranche à durée distincte améliore l’estimation des durées inconnues (P1).'],
+    'Âge et sexe des enfants': [3, 'Décrire le case-mix du service.', ''],
+    'Principales causes d’hospitalisation': [3, 'Identifier les causes qui commandent la charge du service.', 'Le regroupement des diagnostics en causes est une étape du prétraitement (abréviations APG, GEF…).'],
+    'Issue du séjour': [1, 'Vérifier que l’issue est renseignée.', 'L’issue sert à classer les séjours sans durée (parti ou encore hospitalisé) et à estimer leur durée (P1).'],
+    'Admissions selon le jour de la semaine': [1, 'Repérer un artefact d’enregistrement (inscriptions regroupées) ou un vrai rythme.', 'Si les inscriptions sont regroupées, la date d’entrée (et non d’enregistrement) doit dater les admissions.'],
+    'Quartiers de résidence les plus fréquents': [3, 'Décrire l’aire de recrutement.', 'Les écritures d’un même quartier sont regroupées (abréviations) ; le quartier reste hors du modèle (donnée personnelle).'],
+    'Durée moyenne de séjour selon l’âge': [2, 'Mesurer le lien entre âge et durée sur toutes les lignes.', 'Un lien net fait de l’âge une variable d’estimation des durées inconnues.'],
+    'Transfusions par mois': [3, 'Suivre un marqueur de gravité saisonnière.', ''],
+    'Récapitulatif mensuel (à comparer avec celui du registre)': [1, 'Contrôler la saisie contre le récapitulatif papier du registre.', 'Un mois incomplet doit être complété ou exclu (P5) avant l’apprentissage.'],
+    'Indicateurs hospitaliers par période': [7, 'Traduire la série en indicateurs connus du service (TOM, DMS, rotation).', 'Mêmes définitions que l’application NERA.'],
+    'Indicateurs par cause d’hospitalisation': [7, 'Dire quelles causes occupent les lits (journées-lits).', ''],
+  }
+  // Module triage : mêmes analyses, autre usage pour quelques-unes.
+  const ROLES_TRIAGE = {
+    'Votre saisie': [1, 'Vérifier quelles constantes sont écrites dans les passages : ce sont les variables possibles du modèle de triage.', 'Lecture du registre (traitement/urgences.py) : âge en années, TA en cmHg convertie, glycémie en g/L, valeurs impossibles écartées.'],
+    'Patients et qualité des soins': [1, 'Compter la cible du triage (grave / non grave) et la répartition enfants / adultes.', 'La décision écrite (Hosp, Ext, †…) est convertie en classe grave / non grave ; la MEO est placée par le banc T1.'],
+    'Variables numériques journalières': [1, 'Décrire l’affluence des urgences et repérer les jours non saisis.', ''],
+    'Jours fériés et vacances scolaires : effet sur les admissions': [3, 'Mesurer l’effet du calendrier sur l’affluence.', ''],
+    'Âge et sexe des enfants': [4, 'Compter enfants et adultes, qui ont des modèles séparés.', 'Chez l’enfant, les constantes sont aussi exprimées en écart à la norme de l’âge (T5).'],
+    'Issue du séjour': [5, 'Mesurer l’équilibre des classes grave / non grave.', 'Les passages sans décision écrite sont exclus de l’apprentissage.'],
+    'Admissions selon le jour de la semaine': [3, 'Tester le rythme hebdomadaire de l’affluence.', ''],
+    'Principales causes d’hospitalisation': [3, 'Décrire les motifs de recours.', 'Le diagnostic n’est jamais lu par le modèle (connu trop tard) : seules les plaintes, regroupées en 18 familles, le sont.'],
+    'Récapitulatif mensuel (à comparer avec celui du registre)': [1, 'Repérer les mois incomplets.', ''],
+  }
+  const roleDe = (t) => (triage() && ROLES_TRIAGE[t]) || ROLES[t] || null
+
   // ── Encadré et branchement sous chaque analyse ─────────────────────────────────────────
-  const bloc = (r) => r ? `<div class="ind-conclusion"><div class="ind-conclusion-k">${ICO}Conclusion pour le modèle</div>
-    <p><b>Constat :</b> ${r.constat}</p><p><b>Ce que cela signifie :</b> ${r.sens}</p><p><b>Décision pour le modèle NERA :</b> ${r.decision}</p><p><b>Démarche à suivre :</b> ${r.faire}</p></div>` : ''
+  const bloc = (r, t) => { if (!r) return ''
+    const ro = roleDe(t), et = ro ? ETAPES[ro[0]] : null
+    return `<div class="ind-conclusion"><div class="ind-conclusion-k">${ICO}Conclusion pour le modèle${et ? ` <span class="ind-etape">· étape ${ro[0]} du projet : ${et[0]}</span>` : ''}</div>
+    ${ro ? `<p><b>À quoi sert cette analyse :</b> ${ro[1]}</p>` : ''}
+    <p><b>Constat :</b> ${r.constat}</p><p><b>Ce que cela signifie :</b> ${r.sens}</p>
+    ${ro?.[2] ? `<p><b>Lien avec le prétraitement :</b> ${ro[2]}</p>` : ''}
+    <p><b>Décision pour le modèle NERA :</b> ${r.decision}</p><p><b>Démarche à suivre :</b> ${r.faire}</p>
+    ${et ? `<p><b>Pour la suite du projet :</b> ${et[1]}</p>` : ''}</div>` }
   const actives = () => [...(triage() ? reglesTriage : regles), ...communes.filter((r) => !(triage() ? reglesTriage : regles).some((s) => s.t === r.t))]
   const premiereVariante = (c) => !cacheIndicateurs?.variantes || c.d === cacheIndicateurs.variantes[0].d
   // Analyse pas encore calculable (trop peu de lignes, de jours ou de variables) : on dit ce qui manque et quoi faire,
@@ -734,17 +839,86 @@
       const regle = actives().find((r) => r.t === sec.t)
       let x = null
       try { x = regle ? regle.f(c, res) : null } catch (e) { console.warn('conclusion', sec.t, e) }
-      res.html = (res.html ?? '') + bloc(x ?? enAttente(res, regle))
+      res.html = (res.html ?? '') + bloc(x ?? enAttente(res, regle), sec.t)
       return res
     }
   }
 
-  // Rubrique récapitulative de la Synthèse : toutes les conclusions calculables sans simulation, en un tableau.
+  // ════════════════════════════════════════════════════════════════════════════════════════
+  // Prétraitement : ce qui est fait, étape par étape, avec les chiffres de la saisie. Chaque ligne dit ce qui est
+  // fait, ce que cela donne ici, à quoi cela sert pour la suite et quel banc vérifie que le choix ne change pas
+  // les conclusions. Mêmes règles que le dépôt (traitement/ pour l'outil et l'export, nera-modele pour le modèle).
+  // ════════════════════════════════════════════════════════════════════════════════════════
+  const PRETRAIT = 'Prétraitement : ce qui a été fait, étape par étape'
+  function lignesPretraitementLit(c) {
+    const d = c.d, rg = d.reglages ?? {}, s = d.statuts ?? {}, n = Object.values(s).reduce((a, b) => a + b, 0)
+    const manq = (rg.manquants ?? []).reduce((a, t) => a + t.a - t.de + 1, 0), src = rg.sources ?? {}
+    const nn = (x) => String(x ?? '').toLowerCase().replace(/\s+/g, ''), grp = {}
+    for (const l of lignesService()) if (nn(l.age)) { const k = [l.date_entree || l[registre().dateReference], nn(l.age), l.sexe, nn(l.domicile)].join('|'); grp[k] = (grp[k] ?? 0) + 1 }
+    const dbl = Object.values(grp).filter((v) => v > 1).length
+    const comp = { minuit: 'recensement de minuit (un enfant compte les nuits passées)', journee: 'présence dans la journée (jour de sortie compris)', pondere: 'présence pondérée par les heures' }[rg.comptage] ?? 'recensement de minuit'
+    return [
+      ['1. Lecture et plausibilité', 'Les dates écrites (jj/mm/aa, « 0?/03/25 »…) sont lues ; un « Nbre de jours » qui est en fait une date ou un prix recopié, ou qui dépasse 90 nuits, est écarté ; une sortie avant l’entrée rejette la ligne ; une date d’entrée illisible est reconstituée (sortie − nombre de jours, sinon date d’enregistrement).',
+        `${rg.aberrantes ?? 0} durée(s) aberrante(s) écartée(s), ${rg.rejetees ?? 0} ligne(s) rejetée(s), ${rg.entreesApprochees ?? 0} date(s) d’entrée reconstituée(s).`, 'Empêche qu’une faute de recopie crée un séjour de plusieurs mois qui gonflerait l’occupation de tous les jours suivants.', 'garde-fou'],
+      ['2. Doublons et reports', 'Un même enfant écrit deux fois (même date d’entrée, âge, sexe, quartier) est signalé ; les patients « Ancien » réécrits en début de mois sont repérés (traitement/doublons.py).',
+        `${dbl} doublon(s) probable(s) signalé(s) (Synthèse → Votre saisie).`, 'Un séjour compté deux fois occupe deux lits dans la série cible : le modèle apprendrait une occupation trop haute.', 'P4'],
+      ['3. N° d’ordre manquants', 'Les numéros absents dans chaque mois sont listés ; une suite manquante à la fin arrête le calcul au dernier jour de saisie continue.',
+        `${manq} N° manquant(s)${rg.trouFinal ? ` ; calcul arrêté au ${fmtDate(versDate(rg.trouFinal.apres))}` : ''}.`, 'Une page oubliée crée un faux creux d’occupation : le modèle apprendrait une baisse qui n’a pas eu lieu.', 'P7'],
+      ['4. Statut de chaque séjour', 'Chaque séjour reçoit un statut selon ce qu’on sait de sa fin : sortie écrite, sortie calculée (entrée + nombre de jours), encore hospitalisé à la fin de la saisie, durée estimée, durée inconnue.',
+        `${n} séjours : ${s.observee ?? 0} sortie écrite, ${s.calculee ?? 0} calculée, ${s.censuree ?? 0} encore hospitalisé(s), ${s.imputee ?? 0} estimée(s), ${s.inconnue ?? 0} inconnue(s).`, 'Dit comment chaque enfant entre dans le comptage jour par jour ; la part de durées non écrites mesure l’incertitude de la série cible.', 'P1, P2'],
+      ['5. Durées inconnues', `Réglage « ${rg.inconnues === 'estimee' ? 'estimée' : rg.inconnues === 'mediane' ? 'médiane du service' : 'exclure'} » : une durée manquante est ${rg.inconnues === 'exclure' ? 'exclue de l’occupation' : 'remplacée par la médiane des séjours connus de même prix (au moins 5), sinon de même issue, sinon de tout le service'}.`,
+        rg.inconnues === 'exclure' ? `${s.inconnue ?? 0} séjour(s) exclu(s).` : `${s.imputee ?? 0} durée(s) estimée(s) : ${src.prix ?? 0} par le prix, ${src.issue ?? 0} par l’issue, ${src.mediane ?? 0} par la médiane (${rg.mediane ?? '—'} nuits).`, 'Exclure sous-estime l’occupation des mois mal remplis ; estimer garde l’enfant dans le lit avec une durée plausible. La fourchette (1er et 3e quartile) mesure l’effet de ce choix.', 'P1'],
+      ['6. Encore hospitalisé (censure)', 'Un enfant entré peu avant la fin de la saisie, sans sortie ni issue écrite, est compté présent jusqu’à la fin s’il est entré dans la fenêtre choisie (menu Calcul : durée fixe, ou 95e centile des durées connues).',
+        `Fenêtre de ${rg.fenetreCensure ?? '—'} jours (${rg.censure === 'p95' ? `95e centile des durées, ${rg.p95} nuits, au moins 7` : 'durée fixe'}).`, 'Évite de le compter sorti (occupation trop basse en fin de série) ou de garder indéfiniment un enfant parti sans trace.', 'P2'],
+      ['7. Convention du nombre de jours', 'Le registre compte tantôt les nuits, tantôt les jours entrée et sortie comprises ; la proportion est mesurée sur les lignes qui ont les deux, mois par mois.',
+        d.convention || '—', 'Une sortie calculée peut tomber un jour plus tôt ou plus tard : la convention mesurée évite un biais systématique ; les bornes basse et haute forment la fourchette.', 'P3'],
+      ['8. Période exploitable', `Le calcul commence au premier mois après lequel tous les mois ont au moins ${Math.round(100 * (rg.seuil ?? 0.9))} % de durées connues.`,
+        d.premierMois ? `À partir de ${etiquettePeriode(d.premierMois)} ; ${rg.bloquants?.length ?? 0} mois en dessous du seuil avant.` : (d.message ?? '—'), 'Une période où les durées manquent donnerait une série fausse : on n’apprend que sur la partie fiable du registre.', 'P5'],
+      ['9. Rodage', 'Les enfants entrés avant le premier jour saisi sont présents mais absents des lignes : on attend qu’ils soient sortis (95e centile des durées, au moins 14 jours) avant de compter.',
+        d.rodage ? `${d.rodage} jours de rodage ; calcul du ${fmtDate(d.debut)} au ${fmtDate(d.fin)}.` : '—', 'Sans rodage, le début de la série serait trop bas et le modèle apprendrait une fausse montée.', 'P5'],
+      ['10. Méthode de comptage', 'Choix de ce qu’on appelle « occupation » : recensement de minuit, présence dans la journée ou présence pondérée par les heures.',
+        `Méthode utilisée : ${comp}.`, 'Définit la série cible elle-même ; le pic de la journée (borne haute) complète le recensement pour le dimensionnement.', 'P8'],
+      ['11. Fin de série incomplète', 'Un enfant est inscrit quelques jours après son entrée : les derniers jours saisis manquent d’enfants pas encore inscrits ; ils sont retirés des modèles (95e centile du délai d’inscription).',
+        `${typeof delaiInscription === 'function' ? delaiInscription() : '—'} derniers jours retirés pour les modèles de prévision.`, 'Évite que toutes les prévisions partent d’une fin de série artificiellement basse.', 'P6'],
+      ['12. Période verrouillée', 'Les jours à partir du verrou ne sont jamais lus pendant le développement : ils servent une seule fois, au test final.',
+        `Verrou au ${CONFIG.dateVerrou ? CONFIG.dateVerrou.split('-').reverse().join('/') : '—'}.`, 'Garantit que l’erreur finale est mesurée sur des jours jamais vus : c’est la preuve honnête de la qualité du modèle.', 'test final'],
+      ['13. Construction des variables', 'Dans le dépôt nera-modele : pour prévoir le jour t + h, le soir du jour t, occupation des 7 derniers jours, admissions des 3 et 7 derniers jours, sorties des 7 derniers jours, jour de la semaine de la cible (7 indicatrices), mois en sinus et cosinus, férié et vacances.',
+        'Calculées uniquement avec ce qui est connu au jour t.', 'Aucune information du futur n’entre dans le modèle (pas de fuite) ; chaque groupe de variables est gardé seulement s’il réduit l’erreur.', 'D5'],
+      ['14. Standardisation', 'Chaque variable continue est centrée-réduite avec la moyenne et l’écart-type des seules lignes d’entraînement de chaque découpage ; les indicatrices 0/1 ne le sont pas.',
+        'Appliquée à chaque découpage de la validation glissante.', 'Le noyau RBF dépend des distances : sans elle, l’occupation (en dizaines) écraserait le sinus du mois (entre −1 et 1).', 'D6'],
+      ['15. Découpage pour la validation', 'Validation glissante : le modèle est entraîné sur le passé et prévoit les jours suivants, origine après origine, puis réentraîné.',
+        'Mêmes jours évalués pour tous les modèles comparés.', 'Imite l’usage réel (chaque soir, prévoir demain) et rend les comparaisons équitables (Diebold-Mariano).', 'D1'],
+    ]
+  }
+  function lignesPretraitementTriage() {
+    const L = lignesService(), n = L.length, o = L.map(issueUrg)
+    const nb = (k) => L.filter((l) => String(l[k] ?? '').trim()).length, pc = (k) => (n ? `${Math.round(100 * nb(k) / n)} %` : '—')
+    return [
+      ['1. Âge', 'Un âge sans unité est lu en années ; « mois », « jours », « NRS » (nourrisson) sont reconnus.', `${L.map((l) => ageEnMois(l.age)).filter((a) => a !== null).length} âge(s) lisible(s) sur ${n}.`, 'Sépare enfants (moins de 15 ans) et adultes, qui ont des modèles distincts ; l’âge fixe aussi les normes des constantes.', 'T6'],
+      ['2. Tension artérielle', '« 12/8 » est écrit en cmHg (systolique < 30) et converti en 120/80 mmHg.', `TA écrite dans ${pc('ta')} des passages.`, 'Sans conversion, une TA normale passerait pour un effondrement.', 'T5'],
+      ['3. Glycémie', 'Ramenée en g/L : « HI » = 6, « LO » = 0,2, mmol/L ÷ 5,551, mg/dL ÷ 100.', `Glycémie écrite dans ${pc('glycemie')} des passages.`, 'Unités mélangées dans le registre : une seule unité rend la variable comparable.', 'T5'],
+      ['4. Constantes plausibles', 'Une valeur hors des bornes physiologiques (pouls 20–260, température 30–44 °C, SpO2 40–100 %, FR 5–120…) est considérée comme non lue.', `Pouls ${pc('pouls')}, température ${pc('temperature')}, FR ${pc('fr')}, SpO2 ${pc('spo2')} des passages.`, 'Une erreur de recopie ne devient pas un signe de gravité.', 'T4'],
+      ['5. Plaintes', 'Le texte libre est ramené à 18 familles fixes (fièvre, toux, convulsions, détresse respiratoire…), une indicatrice 0/1 chacune.', 'Familles détectées dans le texte de chaque passage.', 'Un texte libre ne peut pas entrer dans le modèle ; des familles fixes, si.', 'T4'],
+      ['6. Cible grave / non grave', 'Décision écrite convertie : Hosp, Référé, SCAM, Décédé (†) = grave ; Externe = non grave ; MEO = cas intermédiaire.',
+        `${o.filter((x) => ['Hospitalisé', 'Référé', 'Décédé', 'SCAM'].includes(x)).length} grave(s), ${o.filter((x) => x === 'Externe').length} non grave(s), ${o.filter((x) => x === 'MEO').length} MEO, ${o.filter((x) => x === null).length} sans décision.`, 'C’est ce que le modèle apprend à prévoir ; la place de la MEO change la cible et se décide au banc.', 'T1'],
+      ['7. Données jamais lues', 'N° de dossier, résidence et diagnostic ne sont jamais lus par le modèle.', '—', 'Protège les données personnelles et évite la fuite d’information (le diagnostic est posé après le triage).', '—'],
+      ['8. Valeurs manquantes', 'Remplacées par la médiane apprise sur l’entraînement, avec une indicatrice « non mesurée ».', '—', 'Le fait qu’une constante n’ait pas été prise est lui-même une information.', 'T4'],
+      ['9. Standardisation', 'Centrage-réduction des variables continues avec la moyenne et l’écart-type de l’entraînement seul.', '—', 'Indispensable aux SVM et à la logistique, qui dépendent des distances ou des échelles.', 'T2'],
+      ['10. Découpage et seuil', 'Par mois : 75 % des mois pour apprendre, 25 % pour calibrer (choix des réglages, puis probabilités de Platt) ; seuil de décision fixé par le rapport des coûts C₊/C₋.', '—', 'Le seuil traduit qu’un grave raté coûte plus qu’une fausse alerte.', 'T3'],
+    ]
+  }
   const syn = ONGLETS.find((o) => o.nom === 'Synthèse')
+  syn?.sections.push({ t: PRETRAIT, rendre: (c) => {
+    const lignes = triage() ? lignesPretraitementTriage() : (c.d?.reglages ? lignesPretraitementLit(c) : null)
+    if (!lignes) return { html: vide('Le prétraitement s’affichera dès que des lignes datées seront saisies.') }
+    return { html: `<div class="table-wrap ind-recap"><table class="table"><thead><tr><th>Étape</th><th>Ce qui est fait</th><th>Sur vos données</th><th>À quoi cela sert pour la suite</th><th>Banc</th></tr></thead><tbody>${lignes.map((l) => `<tr>${l.map((v) => `<td>${v}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`,
+      lecture: `le <b>prétraitement</b> transforme ${triage() ? 'les passages écrits à la main en un tableau de variables propres et une cible grave / non grave' : 'les lignes du registre (une par séjour) en une série jour par jour d’enfants présents, la cible du modèle, puis en variables d’entrée'}. Chaque étape répond à un défaut réel du registre ; chaque choix est vérifié par un banc ${triage() ? 'T' : 'P'} du dépôt nera-modele, qui compare les variantes sur les mêmes jours. Un choix qui ne change pas les prévisions de façon significative est sans conséquence ; sinon il doit être justifié par autre chose que l’erreur (loi de Little, comptages réels, vraisemblance clinique). Les réglages se changent dans le menu « Calcul ».` }
+  } })
   syn?.sections.push({ t: RECAP, rendre: (c) => {
-    const lignes = actives().map((r) => { let x = null; try { x = r.f(c) } catch { x = null } return x && [r.nom, x.constat, x.sens, x.decision, x.faire, typeof r.banc === 'function' ? r.banc() : r.banc] }).filter(Boolean)
+    const lignes = actives().map((r) => { let x = null; try { x = r.f(c) } catch { x = null } const ro = roleDe(r.t); return x && { e: ro?.[0] ?? 9, l: [r.nom, ro ? `${ro[0]}. ${ETAPES[ro[0]][0]}` : '—', x.constat, x.sens, x.decision, x.faire, typeof r.banc === 'function' ? r.banc() : r.banc] } }).filter(Boolean)
+      .sort((a, b) => a.e - b.e).map((x) => x.l)
     if (!lignes.length) return { html: '<div class="alert info" style="display:block">Pas encore assez de données pour conclure.</div>' }
-    return { html: `<div class="table-wrap ind-recap"><table class="table"><thead><tr><th>Analyse</th><th>Constat</th><th>Ce que cela signifie</th><th>Décision pour le modèle</th><th>Démarche à suivre</th><th>Banc</th></tr></thead><tbody>${lignes.map((l) => `<tr>${l.map((v) => `<td>${v}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`,
+    return { html: `<div class="table-wrap ind-recap"><table class="table"><thead><tr><th>Analyse</th><th>Étape du projet</th><th>Constat</th><th>Ce que cela signifie</th><th>Décision pour le modèle</th><th>Démarche à suivre</th><th>Banc</th></tr></thead><tbody>${lignes.map((l) => `<tr>${l.map((v) => `<td>${v}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`,
       lecture: `chaque ligne résume une analyse de l’outil, ce qu’elle signifie et ce qu’elle décide pour le modèle NERA (${triage() ? 'module triage' : 'module lit'}). Les analyses à simulation (Monte-Carlo, heure par heure, survie, file M/G/∞) et les modèles de prévision ont leur conclusion sous leur propre graphique. Les « bancs » sont les comparaisons du dépôt nera-modele qui vérifient chaque choix sur des jours jamais vus (D : choix du modèle ; P : prétraitement ; T : triage). Une décision n’est définitive qu’une fois confirmée par son banc.` }
   } })
 

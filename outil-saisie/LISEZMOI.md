@@ -230,10 +230,17 @@ au-delà, la saisie est à reprendre. Le contrôle se fait en plusieurs séances
   année) et Calcul ; à droite Affichage, le service et le bouton profil (sauvegarde, aide).
 - **En-tête de chaque carte** : l'icône livre affiche ou masque son « Comment lire » (le menu Affichage règle toutes
   les cartes d'un coup) ; les icônes triangle (avertissements) et i (remarques), avec leur nombre, ouvrent le détail.
-- **Conclusion pour le modèle** : sous chaque analyse de chaque rubrique, un encadré calculé sur vos données,
-  en quatre temps : **Constat** (les chiffres), **Ce que cela signifie** (leur sens, en clair), **Décision pour le
-  modèle NERA** (ce que cela change pour le SVR du module lit ou pour le modèle de triage) et **Démarche à suivre**
-  (quoi faire selon le résultat, avec le banc d'essai D, P ou T qui vérifie). Une analyse pas encore calculable dit
+- **Conclusion pour le modèle** : sous chaque analyse de chaque rubrique, un encadré calculé sur vos données. Il
+  situe l'analyse dans les étapes du projet IA (1 collecte et qualité, 2 prétraitement, 3 analyse exploratoire,
+  4 construction des variables, 5 choix du modèle, 6 validation, 7 décision) et donne : **À quoi sert cette
+  analyse**, **Constat** (les chiffres), **Ce que cela signifie**, **Lien avec le prétraitement** (quel réglage
+  P1 à P8 ou quelle règle de lecture est concerné), **Décision pour le modèle NERA**, **Démarche à suivre** (quoi
+  faire selon le résultat, avec le banc d'essai D, P ou T qui vérifie) et **Pour la suite du projet**.
+- **Prétraitement : ce qui a été fait, étape par étape** (Synthèse) : chaque étape du prétraitement (lecture et
+  plausibilité, doublons, N° manquants, statut des séjours, durées inconnues, censure, convention des jours,
+  période exploitable, rodage, comptage, fin de série, verrou, variables, standardisation, découpage), ce
+  qu'elle donne sur vos données, à quoi elle sert et le banc qui la vérifie. Pour les urgences : âge, TA,
+  glycémie, bornes de plausibilité, plaintes, cible grave / non grave, valeurs manquantes, seuil des coûts. Une analyse pas encore calculable dit
   ce qui manque et comment le compléter. La rubrique « Conclusions pour le modèle » de la Synthèse rassemble en un
   tableau toutes celles qui ne demandent pas de simulation. Menu Affichage pour les masquer. Pour le registre des
   urgences, les conclusions portent sur le triage (constantes utilisables, cible, enfants et adultes, coûts).
