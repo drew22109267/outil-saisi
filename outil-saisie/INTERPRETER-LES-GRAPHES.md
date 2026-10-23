@@ -43,6 +43,11 @@ toujours la taille de l'effet à côté.
 
 ---
 
+**Conclusion pour le modèle.** Sous les analyses qui décident d'un choix du modèle, un encadré tiré de vos données
+dit ce qu'il faut en conclure : *Constat* (les chiffres), *Décision* (ce que cela change pour le modèle) et *À faire*
+(l'action, avec le banc d'essai du dépôt nera-modele qui la vérifie). Une décision n'est définitive qu'une fois
+confirmée par son banc.
+
 ## 1. Synthèse
 
 **Votre saisie** — la période saisie, le nombre de lignes et ce que devient chaque ligne (sortie écrite,

@@ -229,6 +229,11 @@ au-delà, la saisie est à reprendre. Le contrôle se fait en plusieurs séances
 - **Par mois** (barre de filtres) : ouvre le choix du regroupement, jour, semaine, mois ou année.
 - **En-tête de chaque carte** : l'icône livre affiche ou masque son « Comment lire » (le menu Affichage règle toutes
   les cartes d'un coup) ; les icônes triangle (avertissements) et i (remarques), avec leur nombre, ouvrent le détail.
+- **Conclusion pour le modèle** : sous chaque analyse qui décide d'un choix du modèle NERA (rythme de la
+  semaine, mémoire de la série, stationnarité, dispersion, fériés, barre à battre, cohérence de Little, pic…), un
+  encadré calculé sur vos données : Constat, Décision pour le modèle, À faire (avec le banc d'essai qui vérifie).
+  La rubrique « Conclusions pour le modèle » de la Synthèse les rassemble en un tableau. Menu Affichage pour les
+  masquer. Pour le registre des urgences, les conclusions portent sur le triage (constantes utilisables, cible).
 - **Registre des urgences** (passages, sans date d'entrée ni de sortie d'hospitalisation) : la Synthèse montre les
   passages, les constantes relevées, l'orientation décidée et les patients, pas de durée de séjour. En haut, le nombre de lignes et l'heure du dernier calcul
   (« +3 depuis la dernière fois »).

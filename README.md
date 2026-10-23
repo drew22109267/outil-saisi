@@ -57,6 +57,7 @@ outil-saisi/
 │   ├── temps.js, legende.js      zoom, regroupement, animation ; légendes cliquables
 │   ├── synthese.js               cartes de chiffres avec leur graphique, style des rubriques
 │   ├── menu-indicateurs.js       menu flottant des rubriques (la barre latérale ne défile plus)
+│   ├── conclusions.js            conclusions pour le modèle sous chaque analyse, et leur récapitulatif
 │   ├── calendrier.js             jours fériés et vacances scolaires camerounais
 │   ├── convertir_photos.bat      conversion des photos (HEIC → JPEG, sans métadonnées)
 │   ├── LISEZMOI.md               mode d'emploi détaillé
