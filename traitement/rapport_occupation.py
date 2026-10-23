@@ -4,7 +4,7 @@ rien après traitement.verrou.DATE_VERROU n'est lu).
 
 Exemple (dans WSL, depuis le dossier modeles) :
     ~/memoire-env/bin/python -m traitement.rapport_occupation donnees/dataset-hospitalisation-2026-10-03.csv \
-        --service PED --lits 20
+        --service PED --lits 18
 
 Les sorties calculées (entrée + nombre de jours) sont traitées selon la part de lignes
 inclusives mesurée sur les sorties écrites (voir traitement.chargement et traitement.occupation) :
@@ -89,9 +89,10 @@ def main() -> None:
                    help="durées inconnues : exclues (défaut), médiane du service, ou estimées par le prix puis l'issue")
     p.add_argument("--rodage-debut", action="store_true",
                    help="saisie commencée en cours de route (fenêtre courte) : écarte les premières semaines")
-    p.add_argument("--comptage", choices=["minuit", "journee", "pondere"], default="minuit",
+    p.add_argument("--comptage", choices=list(COMPTAGES), default="minuit",
                    help="minuit : nuits passées (entrée ≤ jour < sortie) ; journee : jour de sortie compris ; "
-                        "pondere : fraction de chaque jour où l'enfant est là (heures typiques ci-dessous)")
+                        "pondere : fraction de chaque jour où l'enfant est là (heures typiques ci-dessous) ; "
+                        "pic : plus grand nombre d'enfants présents en même temps dans la journée (valeur attendue)")
     p.add_argument("--heure-entree", type=float, default=12.0, help="comptage pondere : heure moyenne d'admission (12)")
     p.add_argument("--heure-sortie", type=float, default=13.0, help="comptage pondere : heure moyenne de sortie (13 : sorties de jour, 8–18 h)")
     p.add_argument("--duree-meme-jour", type=float, default=8.0, help="comptage pondere : durée (h) d'un séjour du même jour (8)")
@@ -185,9 +186,12 @@ def main() -> None:
     print("\n── Plus grand nombre d'enfants présents en même temps dans la journée (encadrement exact)")
     print(f"  pic moyen : entre {occ['pic_bas'].mean():.2f} et {occ['pic_haut'].mean():.2f} enfants ; "
           f"plus haut pic : entre {occ['pic_bas'].max():.0f} et {occ['pic_haut'].max():.0f}")
+    print(f"  pic attendu (entrées et sorties dans un ordre au hasard, loi exacte) : {occ['pic_attendu'].mean():.2f} en moyenne, "
+          f"{occ['pic_attendu'].max():.1f} au plus ; quantile 80 % : {occ['pic_q80'].mean():.2f} en moyenne")
     if lits is not None:
         lj = occ["lits"]
-        print(f"  jours où le pic dépasse les lits : au moins {int((occ['pic_bas'] > lj).sum())}, au plus {int((occ['pic_haut'] > lj).sum())}")
+        print(f"  jours où le pic dépasse les lits : au moins {int((occ['pic_bas'] > lj).sum())}, au plus {int((occ['pic_haut'] > lj).sum())}, "
+              f"{int((occ['pic_attendu'] > lj).sum())} pour le pic attendu, {int((occ['pic_q80'] > lj).sum())} pour son quantile 80 %")
 
     # Capacité incertaine (date du passage de 15 à 20 lits inconnue, lits pas tous opérationnels) : la série des
     # présents ne dépend pas du nombre de lits ; seuls les indicateurs rapportés aux lits changent.

@@ -2,7 +2,7 @@
 // Barre du haut : les filtres des Indicateurs (Statistique, Par mois, Calcul) y passent, à gauche, au lieu d'occuper
 // une ligne au-dessus du contenu ; on y retire ce qui faisait doublon (nombre de lignes, déjà à côté de « Saisie »
 // dans la barre latérale ; titre de la page, déjà sous « Indicateurs »). À droite : Affichage, Service et un bouton
-// profil (avatar à icône). Carte Sauvegarde : fond blanc, icône noire, plus compacte.
+// profil (avatar à icône), dont le menu ouvre aussi le rapport PDF pour le mémoire. Carte Sauvegarde : fond blanc, icône noire, plus compacte.
 // ═══════════════════════════════════════════════════════════════════════════════════════════
 (function () {
   const topbar = document.querySelector('.topbar'), titreInd = document.getElementById('topbarInd')
@@ -78,6 +78,9 @@
     <div class="profil-menu" role="menu" hidden>
       <div class="profil-k">Service affiché<b id="profilService">—</b></div>
       <button type="button" role="menuitem" data-profil="sauvegarde"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>Sauvegarde et restauration</button>
+      <button type="button" role="menuitem" data-profil="rapport-synthese" title="Saisie, chiffres clés, prétraitement étape par étape et tableau des conclusions"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>Rapport PDF : synthèse et conclusions</button>
+      <button type="button" role="menuitem" data-profil="rapport-complet" title="Toutes les rubriques des Indicateurs, avec leurs conclusions"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h8M8 9h2"/></svg>Rapport PDF : toutes les rubriques</button>
+      <button type="button" role="menuitem" data-profil="corrections" title="N° manquants, doublons probables, dates incohérentes, durées aberrantes, issues non renseignées"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Corrections à faire (CSV)</button>
       <button type="button" role="menuitem" data-profil="aide"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/></svg>Aide</button>
     </div>`
   topbar.appendChild(zone)
@@ -93,6 +96,8 @@
     const b = e.target.closest('[data-profil]'); if (!b) return
     fermer()
     if (b.dataset.profil === 'sauvegarde') document.getElementById('ouvrirSauvegarde')?.click()
+    if (b.dataset.profil === 'corrections') window.exporterCorrections?.()
+    if (b.dataset.profil.startsWith('rapport-')) window.genererRapport?.(b.dataset.profil === 'rapport-complet')
     if (b.dataset.profil === 'aide') document.getElementById('ouvrirAide')?.click()
   })
   document.addEventListener('click', (e) => { if (!zone.contains(e.target)) fermer() })

@@ -218,24 +218,27 @@
       lecture: `si les enfants arrivaient <b>au hasard</b> (taux λ constant) et restaient chacun une durée quelconque de moyenne W, sans limite de lits, le nombre de présents suivrait une <b>loi de Poisson</b> de moyenne <b>λ·W</b> (modèle de file M/G/∞) : c’est la loi de Little appliquée non plus à la moyenne mais à <b>toute la distribution</b>. Pour une loi de Poisson, variance = moyenne (indice de dispersion = 1). Un indice nettement supérieur à 1 (ici ${nf(v / m, 2)}) veut dire que l’occupation varie <b>plus que le hasard</b> : les arrivées viennent par vagues. Le <b>mélange de Poisson mois par mois</b> (chaque mois avec sa propre moyenne) teste si la <b>saisonnalité</b> suffit à expliquer cet excès ; s’il colle aux barres observées, oui. La <b>binomiale négative</b> est la loi classique des comptages sur-dispersés. Le tableau donne la probabilité, selon chaque loi, d’atteindre un service tendu ou en sureffectif : la loi de Poisson simple <b>sous-estime</b> ces risques quand l’indice dépasse 1. <b>Pour le SVR</b> : c’est l’argument pour un modèle qui suit la saison et vise un quantile élevé (τ = 0,8) plutôt que la moyenne.` }
   }
 
-  // ── 5. Pic de la journée : encadrement exact ────────────────────────────────────────────
+  // ── 5. Pic de la journée : encadrement exact et pic attendu (loi exacte, sans heure) ─────────
   function rendrePic(c, W, H) {
-    const d = c.d, bas = d.picBas, haut = d.picHaut
+    const d = c.d, bas = d.picBas, haut = d.picHaut, att = d.picAttendu ?? [], q80 = d.picQ80 ?? []
     if (!bas?.length) return { html: vide('Pic non calculé.') }
     const n = bas.length, moy = (t) => t.reduce((a, b) => a + b, 0) / n, L = (i) => d.litsJour?.[i] ?? c.lits
     const depasse = (t) => (c.lits ? t.filter((v, i) => v > L(i)).length : null)
     const minuit = bas.map((_, i) => i)                        // indices (pour les repères)
     return {
+      mesures: { moyBas: moy(bas), moyHaut: moy(haut), moyAtt: att.length ? moy(att) : null, depAtt: att.length ? depasse(att) : null, depQ80: q80.length ? depasse(q80) : null },
       avant: bandeauStats([['Pic moyen de la journée', `entre ${nf(moy(bas), 1)} et ${nf(moy(haut), 1)} enfants`],
+        ...(att.length ? [['Pic attendu (loi exacte)', `${nf(moy(att), 2)} enfants en moyenne`]] : []),
         ['Plus haut pic', `entre ${nf(Math.max(...bas), 0)} et ${nf(Math.max(...haut), 0)}`],
-        ...(c.lits ? [['Jours où le pic dépasse les lits', `au moins ${depasse(bas)}, au plus ${depasse(haut)}`],
+        ...(c.lits ? [['Jours où le pic dépasse les lits', `au moins ${depasse(bas)}, au plus ${depasse(haut)}${att.length ? ` ; attendu ${depasse(att)}, quantile 80 % ${depasse(q80)}` : ''}`],
           ['Pic moyen rapporté aux lits', `${nf(100 * moy(bas.map((v, i) => v / L(i))), 0)} % à ${nf(100 * moy(haut.map((v, i) => v / L(i))), 0)} %`]] : [])]),
       html: lignesSvg({ W, H, debutNum: d.debutNum, titreY: 'Enfants présents en même temps',
         bandes: [{ nom: 'Pic de la journée (entre les deux bornes)', bas, haut, couleur: COUL.cyan, opacite: 0.28 }],
         series: [{ nom: 'Borne basse : max des deux minuits', valeurs: bas, couleur: COUL.bleu, epaisseur: 1.4 },
-          { nom: 'Borne haute : présents dans la journée', valeurs: haut, couleur: COUL.orange, epaisseur: 1.2 }],
+          { nom: 'Borne haute : présents dans la journée', valeurs: haut, couleur: COUL.orange, epaisseur: 1.2 },
+          ...(att.length ? [{ nom: 'Pic attendu (ordre des entrées et sorties au hasard)', valeurs: att, couleur: COUL.noir, epaisseur: 1.6 }] : [])],
         refs: c.lits ? [{ nom: `${c.lits} lits`, valeur: c.lits, couleur: COUL.rouge }] : [] }),
-      lecture: `le registre ne donne pas les heures : on ne connaît pas le nombre exact d’enfants présents <b>au moment le plus chargé</b> de la journée, mais on l’<b>encadre exactement</b>, sans aucune hypothèse. Borne basse : le minuit qui ouvre la journée et celui qui la ferme sont deux moments de cette journée, donc le pic est au moins égal au plus grand des deux. Borne haute : tous les enfants présents à un moment de la journée (comptage journalier) ; le pic ne peut pas dépasser ce nombre. Le vrai pic est dans la <b>bande bleu clair</b>. C’est la grandeur qui dit <b>combien de lits il faut</b> : un service peut avoir une occupation moyenne modeste et des pics qui dépassent sa capacité. Les jours où même la borne basse dépasse les lits sont des sureffectifs <b>certains</b> ; ceux où seule la borne haute dépasse sont des sureffectifs <b>possibles</b>.` }
+      lecture: `le registre ne donne pas les heures : on ne connaît pas le nombre exact d’enfants présents <b>au moment le plus chargé</b> de la journée, mais on l’<b>encadre exactement</b>, sans aucune hypothèse. Borne basse : le minuit qui ouvre la journée et celui qui la ferme sont deux moments de cette journée, donc le pic est au moins égal au plus grand des deux. Borne haute : tous les enfants présents à un moment de la journée (comptage journalier) ; le pic ne peut pas dépasser ce nombre. Le vrai pic est dans la <b>bande bleu clair</b>. C’est la grandeur qui dit <b>combien de lits il faut</b> : un service peut avoir une occupation moyenne modeste et des pics qui dépassent sa capacité. Les jours où même la borne basse dépasse les lits sont des sureffectifs <b>certains</b> ; ceux où seule la borne haute dépasse sont des sureffectifs <b>possibles</b>. <b>Pic attendu</b> (courbe noire) : sans connaître aucune heure, on suppose seulement que les heures d’entrée et de sortie suivent la même loi, quelle qu’elle soit (accueil 24 h sur 24, pas d’heure de sortie fixe). Toutes les façons d’entrelacer les A entrées et les S sorties du jour sont alors également probables, et le principe de réflexion donne la loi <b>exacte</b> du pic : P(pic ≥ N₀ + k) = C(A+S, S+k) ÷ C(A+S, A). Pas de tirage au hasard : le calcul est exact et reproductible. C’est cette série que le modèle NERA apprend aussi à prévoir (comptage « pic »).` }
   }
 
   // ── 6. Occupation heure par heure (modèle probabiliste) ─────────────────────────────────

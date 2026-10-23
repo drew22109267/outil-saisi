@@ -244,6 +244,19 @@ au-delà, la saisie est à reprendre. Le contrôle se fait en plusieurs séances
   ce qui manque et comment le compléter. La rubrique « Conclusions pour le modèle » de la Synthèse rassemble en un
   tableau toutes celles qui ne demandent pas de simulation. Menu Affichage pour les masquer. Pour le registre des
   urgences, les conclusions portent sur le triage (constantes utilisables, cible, enfants et adultes, coûts).
+- **Résultats du modèle** (dernière rubrique) : importez `resultats/resultats_nera_<SERVICE>.json`, écrit par
+  `nera-modele/module_lit/exporter_resultats.py` à la fin de `lancer_tout.sh`. La rubrique montre chaque banc
+  (P1 à P8, D1 à D11, niveaux 0 à 5, sensibilité, survie), son tableau et son verdict : **confirmé** (aucune
+  variante ne fait significativement mieux que le choix retenu) ou **à revoir**. Ensuite, sous chaque conclusion
+  des autres rubriques, la ligne **Résultat du banc** dit ce que le banc cité a trouvé, et le tableau du
+  prétraitement affiche le verdict à côté de chaque code. Le fichier ne contient aucune donnée de patient ; il est
+  gardé dans le navigateur, un par service (bouton Retirer pour l'oublier).
+- **Bouton profil** : **Rapport PDF : synthèse et conclusions** (saisie, chiffres clés, prétraitement étape par
+  étape, tableau des conclusions) ou **Rapport PDF : toutes les rubriques**. Le rapport s'ouvre dans une nouvelle
+  fenêtre avec, en tête, le service, la période calculée, les réglages et la date du calcul ; « Enregistrer en PDF »
+  dans la fenêtre d'impression. Les vues 3D ne sont pas imprimées. **Corrections à faire (CSV)** : une ligne par
+  point à vérifier sur les photos (N° manquants, doublons probables, enregistré avant l'entrée, sortie avant
+  l'entrée, durée aberrante, issue non renseignée), avec le mois, le N° d'ordre et ce qu'il faut faire.
 - **Registre des urgences** (passages, sans date d'entrée ni de sortie d'hospitalisation) : la Synthèse montre les
   passages, les constantes relevées, l'orientation décidée et les patients, pas de durée de séjour. En haut, le nombre de lignes et l'heure du dernier calcul
   (« +3 depuis la dernière fois »).
@@ -282,8 +295,9 @@ au-delà, la saisie est à reprendre. Le contrôle se fait en plusieurs séances
 | **Séries temporelles** | Courbe jour par jour (moyennes et médiane mobiles, tendance, bande ± 2 σ, min–max, fourchette, capacité) · admissions · décomposition tendance / semaine / résidu · ACF · PACF · volatilité |
 | **Modèles de prévision** | Tests de stationnarité (ADF, KPSS, Ljung-Box) · tendance, saisonnalité, dispersion (Mann-Kendall, forces, Kruskal-Wallis, indice de dispersion) · périodogramme · comparaison de 9 modèles sur une validation · SARIMA (ordres réglables ou recherche automatique, prévision et intervalle à 95 %) · diagnostic des résidus · prévisions de tous les modèles |
 | **Flux et séjours** | Admissions et sorties · durées de séjour · DMS par mois, par cause, par tranche d'âge |
-| **Patients** | Âge et sexe · causes · issues · jour d'admission · quartiers · durée de séjour selon l'âge · transfusions |
+| **Patients** | Âge et sexe · causes · issues · jour d'admission (par date d'enregistrement et par date d'entrée, avec le délai d'inscription) · quartiers · durée de séjour selon l'âge · transfusions |
 | **Tableaux** | Récapitulatif mensuel (à comparer à celui du registre) · indicateurs par période · indicateurs par cause |
+| **Résultats du modèle** | Résultats importés des bancs d'essai de NERA et verdict de chaque banc · prétraitement P1 à P8 · choix de conception D1 à D11 · niveaux 0 à 5 · sensibilité des hyperparamètres · sensibilité à la convention des jours · survie |
 
 Les rubriques marquées « occupation » restent grisées tant que la saisie ne couvre pas assez de jours
 (voir § 7). Les statistiques sur les patients sont disponibles dès les premières lignes.
@@ -330,7 +344,8 @@ Bouton **Calcul** → **Comptage** :
 | **Toutes les méthodes** | les trois graphes l'un sous l'autre, dans chaque rubrique qui en dépend | | |
 
 Le bouton **Réglages par défaut** (en bas du menu Calcul) remet **toutes** les hypothèses à leur valeur de départ :
-celles du calcul (90 %, durées inconnues exclues, 30 jours, recensement de minuit, heures 12 h, 13 h et 8 h) et celles
+celles du calcul, qui sont les choix retenus pour NERA (90 %, durées inconnues estimées, censure au p95 des
+durées, recensement de minuit, heures 12 h, 13 h et 8 h) et celles
 des simulations (occupation heure par heure : entrées 0–24 h, sorties 8–18 h, jour le plus à risque ; 300 tirages
 pour les simulations de Monte-Carlo). Les lits et les changements de capacité, qui sont des faits, sont gardés.
 
@@ -341,7 +356,13 @@ dessinées qu'une fois.
 
 **Pic de la journée** (rubrique Occupation) : le plus grand nombre d'enfants présents en même temps est encadré
 exactement, sans hypothèse d'heure, entre le plus grand des deux minuits qui encadrent la journée et le comptage
-de la journée.
+de la journée. Le **pic attendu** (courbe noire) se calcule sans aucune heure : on suppose seulement que les
+heures d'entrée et de sortie suivent la même loi, quelle qu'elle soit (accueil 24 h sur 24, pas d'heure de sortie
+fixe). Alors les C(A+S, A) façons d'entrelacer les A entrées et les S sorties du jour sont également probables
+et le principe de réflexion donne la loi exacte du pic : P(pic ≥ N₀ + k) = C(A+S, S+k) ÷ C(A+S, A), N₀ étant
+les présents au début du jour. Pas de simulation : le résultat est exact et reproductible, identique à
+`traitement/occupation.py` (colonnes `pic_attendu`, `pic_q80`, `pic_q95`), et NERA apprend à le prévoir
+(comptage « pic »).
 
 **Occupation heure par heure** (rubrique Occupation) : les heures d'entrée et de sortie, absentes du registre,
 sont tirées au hasard dans des fenêtres réglables dans la section (même loi pour tout le service ; par défaut
@@ -516,6 +537,10 @@ pouls, TA, glycémie et température pour les urgences).
 | `statistiques.js` | Bibliothèque statistique écrite à la main (`window.Stat`) : lois, descriptif, tests, régression, séries temporelles, modèles de prévision, métriques |
 | `indicateurs.js` | Onglet 3 : rubriques et statistiques, graphiques SVG dessinés à la main, barre latérale, filtre, fenêtre « Agrandir », infobulles, mise à jour automatique |
 | `occupation-validation.js` | Contrôles de l'occupation ajoutés à la rubrique Occupation : pic de la journée, occupation heure par heure (heures inconnues : fenêtres réglables, Monte-Carlo du pic), bilan des flux, Monte-Carlo (300 tirages, graine fixe), Kaplan-Meier, file M/G/∞ |
+| `conclusions.js` | Encadré « Conclusion pour le modèle » sous chaque analyse, tableau du prétraitement et tableau des conclusions (Synthèse) |
+| `resultats-modele.js` | Rubrique « Résultats du modèle » : import de `resultats_nera_<SERVICE>.json`, verdict des bancs, ligne « Résultat du banc » sous les conclusions |
+| `rapport.js` | Rapport PDF pour le mémoire (Synthèse ou toutes les rubriques) et liste des corrections à faire (CSV) |
+| `barre-haut.js` | Barre du haut des Indicateurs, bouton profil et son menu, barres de défilement |
 | `assets/theme.css` | Copie de la feuille de style de l'application NERA (`app/src/styles/theme.css`) : à recopier si le thème de l'application change |
 | `assets/logo-na.png`, `assets/favicon-32.png` | Logo et icône |
 | `convertir_photos.bat` / `.ps1` | Conversion des photos (HEIC → JPEG, sans métadonnées) |

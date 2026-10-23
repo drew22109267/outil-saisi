@@ -322,7 +322,7 @@ d'enregistrement est une faute de frappe sur l'année ou le mois ; elle est corr
 **Occupation et indicateurs** :
 
 ```bash
-~/memoire-env/bin/python -m traitement.rapport_occupation donnees/export_outil_PED.csv --service PED --lits 20 \
+~/memoire-env/bin/python -m traitement.rapport_occupation donnees/export_outil_PED.csv --service PED --lits 18 \
     --inconnues estimee --fenetre-censure p95 --rodage-debut --comptage minuit --scenarios-lits 15 16 17 18 19 20
 ```
 
@@ -334,10 +334,10 @@ scénarios de capacité. Écrit dans `resultats/` : `occupation_<SERVICE>.csv` (
 
 | Option | Effet |
 |---|---|
-| `--comptage minuit\|journee\|pondere` | méthode de comptage des présents (fichiers suffixés `_journee`, `_pondere`) |
+| `--comptage minuit\|journee\|pondere\|pic` | méthode de comptage des présents (fichiers suffixés `_journee`, `_pondere`, `_pic`) ; `pic` : plus grand nombre d'enfants présents en même temps dans la journée, valeur attendue par la loi exacte du maximum (principe de réflexion, aucune heure nécessaire : voir `traitement/occupation.py`) |
 | `--heure-entree 12 --heure-sortie 13 --duree-meme-jour 8` | heures moyennes de la méthode pondérée (entrées à toute heure, sorties de jour 8–18 h) |
-| `--lits 20` ou `--lits-fichier donnees/lits_PED.csv` | capacité fixe, ou variable (`date_debut;lits`) |
-| `--scenarios-lits 15 16 … 20` | taux pour chaque capacité, tant que la date du passage de 15 à 20 lits est inconnue |
+| `--lits 18` ou `--lits-fichier donnees/lits_PED.csv` | capacité fixe, ou variable (`date_debut;lits`) |
+| `--scenarios-lits 15 16 … 20` | taux pour chaque capacité : le nombre de lits réellement opérationnels varie (20 installés) |
 | `--inconnues exclure\|mediane\|estimee` | traitement des durées inconnues |
 | `--fenetre-censure 30\|p95` | délai au-delà duquel un séjour sans sortie n'est plus « encore hospitalisé » |
 | `--rodage-debut` | rodage compté depuis le premier jour d'enregistrement |
@@ -414,7 +414,7 @@ noyau, perte, τ, hyperparamètres, validation) sont dans `module_lit/METHODE.md
 | Fin de série | p95 du délai d'inscription retiré | aucune coupe, 7 jours | les derniers jours manquent d'enfants pas encore inscrits | P6 |
 | Trous de saisie | gardés | lignes d'apprentissage touchées exclues | à mesurer : un trou crée un faux creux que le modèle apprendrait | P7 |
 | Méthode de comptage | recensement de minuit | comptage journalier, présence pondérée par le temps | norme hospitalière, comparable ; les deux autres séries sont menées en parallèle dans toute la chaîne | P8 |
-| Capacité | 20 lits, scénarios de 15 à 20 | capacité variable datée | la date du passage de 15 à 20 lits est inconnue : le taux est présenté comme une plage | scénarios de lits |
+| Capacité | 18 lits, scénarios de 15 à 20 | 20 lits installés, 17 lits | la pédiatrie a 20 lits depuis longtemps, mais plusieurs sont souvent non opérationnels : 18 est la capacité réellement disponible retenue, le taux est aussi donné pour 15 à 20 lits | scénarios de lits |
 | Fautes d'année ou de mois sur l'entrée | corrigées et listées, à reporter dans l'outil | ligne gardée telle quelle | une entrée en 2023 fausse tout le début de la série | contrôle du convertisseur |
 | Départ du rodage | premier jour d'enregistrement + max(14 j, p95 des durées) | début du premier mois | les enfants présents au premier jour du registre ont été admis avant : on attend qu'ils soient sortis | P5 |
 
@@ -474,4 +474,4 @@ avec une phrase de confirmation ; chaque ouverture est inscrite dans `resultats/
 | Traitement : conversion, statuts, trois méthodes de comptage, pic, capacité variable, indicateurs, garde-fous | fait, testé, vérifié |
 | Saisie de la pédiatrie (juillet 2024 → octobre 2026) | en cours de correction (dates incohérentes, trous) |
 | Registre des urgences (module triage du modèle NERA) | colonnes définies dans `registres.js`, saisie à faire |
-| Date du passage de 15 à 20 lits, heures habituelles d'entrée et de sortie | à confirmer avec le major du service |
+| Périodes où des lits étaient non opérationnels (pour une capacité datée), heures habituelles d'entrée et de sortie | à confirmer avec le major du service |

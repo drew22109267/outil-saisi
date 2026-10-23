@@ -46,6 +46,8 @@ def verifier_little(occ: pd.DataFrame, sejours: pd.DataFrame, marge_bord_jours: 
     W est la durée moyenne des séjours admis dans la fenêtre et dont la sortie est connue,
     pondérée comme l'occupation (`scenario` doit être celui de `occ`, voir traitement.occupation).
     """
+    if comptage == "pic":
+        raise ValueError("la loi de Little porte sur l'occupation moyenne, pas sur le pic de la journée")
     debut = occ.index.min() + pd.Timedelta(days=marge_bord_jours)
     fin = occ.index.max() - pd.Timedelta(days=marge_bord_jours)
     if fin <= debut:

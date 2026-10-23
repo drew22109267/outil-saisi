@@ -94,6 +94,7 @@ window.ABREVIATIONS = {
 window.REGISTRES = {
   PED: {
     nom: 'Pédiatrie',
+    lits: 18,                           // capacité par défaut : 20 lits installés, mais souvent 2 ou 3 non opérationnels (modifiable)
     ordre: 'n_ordre',                   // numéro de ligne, incrémenté automatiquement
     maxLignesParPhoto: 15,              // une page du registre contient au plus 15 lignes
     dateReference: 'date_enregistrement', // date utilisée par « = » et par l'identifiant de ligne
@@ -206,6 +207,7 @@ window.REGISTRES = {
 window.REGISTRES.MEDF = {
   ...window.REGISTRES.PED,
   nom: 'Médecine femme',
+  lits: 17,
   colonnes: window.REGISTRES.PED.colonnes.map((c) => (c.k === 'age'
     ? { ...c, aide: 'Avec l’unité si elle est écrite : 35 ans. Un nombre seul est en années.' } : c)),
 }

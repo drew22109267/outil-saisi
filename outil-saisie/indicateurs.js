@@ -285,7 +285,7 @@ const ONGLETS = [
     { t: 'Âge et sexe des enfants', h: 260, rendre: (c) => rendreAges(c) },
     { t: 'Principales causes d’hospitalisation', h: 0, rendre: (c, W) => ({ html: barresHorizSvg({ W, items: ordre(c.st.causes).slice(0, 13), couleur: COUL.bleu }), lecture: `regroupement automatique du diagnostic de sortie (ou d’entrée s’il manque) en grandes causes, à partir des mots écrits (APG → paludisme, GEF → gastro-entérite…). Un enfant est compté une fois, dans sa première cause reconnue. À comparer avec les « dix principales causes » du récapitulatif mensuel du registre.` }) },
     { t: 'Issue du séjour', h: 0, rendre: (c, W) => ({ html: barresHorizSvg({ W, items: ordre(c.st.issues), couleur: COUL.vert }), lecture: `comment les séjours se sont terminés, d’après la colonne Observation : sortie à domicile, mise en observation (MEO), sortie contre avis médical (SCAM), référé ou transféré, décès, évadé. « Non renseignée » : rien d’écrit.` }) },
-    { t: 'Admissions selon le jour de la semaine', h: 240, rendre: (c) => ({ html: barresSvg({ W: c.W, H: c.H, categories: JOURS_SEMAINE, series: [{ nom: 'Admissions', valeurs: c.st.semaine, couleur: COUL.bleu }], titreY: 'Nombre d’admissions' }), lecture: `le nombre d’enregistrements selon le jour de la semaine. Un creux le week-end peut venir du service (moins d’admissions) ou du registre (enregistrements regroupés le lundi).` }) },
+    { t: 'Admissions selon le jour de la semaine', h: 240, rendre: (c) => rendreJourAdmission(c) },
     { t: 'Quartiers de résidence les plus fréquents', h: 0, rendre: (c, W) => ({ html: barresHorizSvg({ W, items: ordre(c.st.quartiers).slice(0, 12), couleur: COUL.violet }), lecture: `d’où viennent les enfants hospitalisés (colonne Domicile ; les écritures d’un même quartier sont regroupées : « CV », « Cité verte », « cite verte » comptent ensemble, de même que majuscules, accents et « ? » ; liste des abréviations dans registres.js, ALIAS_QUARTIERS). Utile pour décrire l’aire de recrutement du service.` }) },
     { t: 'Durée moyenne de séjour selon l’âge', h: 270, rendre: (c, W, H) => rendreDureeAge(c, W, H) },
     { t: 'Transfusions par mois', h: 240, rendre: (c) => { const m = Object.keys(c.st.parMois).sort(); return { html: barresSvg({ W: c.W, H: c.H, categories: m.map(etiquettePeriode), series: [{ nom: 'Transfusions', valeurs: m.map((k) => c.st.parMois[k].transf), couleur: COUL.rouge }], titreY: 'Enfants transfusés' }), lecture: `nombre d’enfants dont le traitement reçu mentionne une transfusion. Les pics suivent en général ceux du paludisme grave avec anémie.` } } },
@@ -1665,7 +1665,7 @@ let cacheIndicateurs = null, signatureIndicateurs = '', derniereMaj = null, nbLi
 const signatureSaisie = () => `${etat.service}|${etat.lignes.length}|${JSON.stringify(lignesService()).length}`
 function afficherIndicateurs() {
   etat.lits ??= {}; etat.indOnglet ??= 'Synthèse'; etat.indOptions ??= {}
-  const lits = +etat.lits[etat.service] || null
+  const lits = +etat.lits[etat.service] || +registre()?.lits || null   // sinon la capacité connue du service (registres.js)
   $('#indLits').value = lits ?? ''
   etat.indMethode ??= {}
   const methode = { ...METHODE_DEFAUT, ...(etat.indMethode[etat.service] ?? {}) }
@@ -2019,3 +2019,21 @@ const OPTIONS_HYPOTHESES = ['hhS1', 'hhS2', 'hhE1', 'hhE2', 'hhN', 'hhJour', 'mc
 // Onglet Saisie : les règles et raccourcis s'ouvrent dans le même panneau que les remarques.
 $('#aideSaisieBtn')?.addEventListener('click', (e) => ouvrirNotes({ titre: 'Saisie', avert: [], rem: [
   { html: $('#aideSaisie').innerHTML }] }, 'rem', e.currentTarget))
+
+// Admissions selon le jour de la semaine : date d'enregistrement et, à côté, date d'entrée écrite. Si les deux courbes
+// diffèrent (pic du lundi à l'enregistrement seulement), les inscriptions sont regroupées et c'est la date d'entrée
+// qui doit dater les admissions — c'est ce que fait déjà le prétraitement de NERA.
+function rendreJourAdmission(c) {
+  const st = c.st, nE = (st.semaineEntree ?? []).reduce((a, b) => a + b, 0)
+  const series = [{ nom: 'Date d’enregistrement', valeurs: st.semaine, couleur: COUL.bleu }]
+  if (nE) series.push({ nom: 'Date d’entrée écrite', valeurs: st.semaineEntree, couleur: COUL.orange })
+  let tableau = ''
+  if (nE) {
+    const e = st.ecartsEntree, n = e.length, pc = (k) => `${Math.round(1000 * k / n) / 10} %`
+    const cl = [['Même jour', e.filter((x) => x === 0).length], ['1 jour après', e.filter((x) => x === 1).length], ['2 à 3 jours après', e.filter((x) => x >= 2 && x <= 3).length],
+      ['Plus de 3 jours après', e.filter((x) => x > 3).length], ['Avant l’entrée (incohérent)', e.filter((x) => x < 0).length]]
+    tableau = `<div class="table-wrap" style="margin-top:10px"><table class="table"><thead><tr><th>Enregistrement par rapport à l’entrée</th><th class="num">Lignes</th><th class="num">Part</th></tr></thead><tbody>${cl.map(([l, k]) => `<tr><td>${l}</td><td class="num">${k}</td><td class="num">${pc(k)}</td></tr>`).join('')}</tbody></table></div>`
+  }
+  return { html: barresSvg({ W: c.W, H: c.H, categories: JOURS_SEMAINE, series, titreY: 'Nombre d’admissions' }) + tableau,
+    lecture: `le nombre d’admissions selon le jour de la semaine, compté de deux façons : par la <b>date d’enregistrement</b> (date de la ligne dans le registre) et par la <b>date d’entrée</b> écrite. Si l’enregistrement montre un pic le lundi que l’entrée n’a pas, les inscriptions sont regroupées après le week-end : la date d’entrée est alors la seule à dater les admissions (c’est ce que fait le prétraitement de NERA). Le tableau mesure le délai entre l’entrée et l’enregistrement.` }
+}

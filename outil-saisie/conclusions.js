@@ -365,10 +365,11 @@
       if (!serieOk(c) || !c.d.picHaut?.length) return null
       const ecart = moy(c.d.picHaut) - moy(c.d.presents), L = (i) => c.d.litsJour?.[i] ?? c.lits
       const cert = c.lits ? c.d.picBas.filter((v, i) => v > L(i)).length : null, poss = c.lits ? c.d.picHaut.filter((v, i) => v > L(i)).length : null
-      return { constat: `Le pic de la journée dépasse le recensement en moyenne de ${f(Math.max(0, ecart), 1)} enfant(s) au plus${c.lits ? ` ; sureffectif certain ${cert} jour(s), possible ${poss} jour(s)` : ''}.`,
-        sens: 'Le recensement de minuit ne voit pas les enfants entrés et sortis dans la journée : le vrai besoin en lits, au moment le plus chargé, est plus haut.',
-        decision: 'Pour dimensionner les lits, raisonner sur le pic (le matin, avant les sorties) et non sur la moyenne ; le modèle prévoit le recensement, la marge du quantile τ couvre une partie de cet écart.',
-        faire: 'Présenter au service le taux moyen ET le pic ; si l’écart dépasse 1 enfant, l’ajouter à la prévision avant de la comparer aux lits.' } } },
+      const att = c.d.picAttendu ?? [], depAtt = c.lits && att.length ? att.filter((v, i) => v > L(i)).length : null
+      return { constat: `Le pic de la journée dépasse le recensement en moyenne de ${f(Math.max(0, ecart), 1)} enfant(s) au plus${att.length ? ` ; pic attendu ${f(moy(att), 2)} enfants en moyenne contre ${f(moy(c.d.presents), 2)} au recensement` : ''}${c.lits ? ` ; sureffectif certain ${cert} jour(s), possible ${poss} jour(s)${depAtt !== null ? `, attendu ${depAtt} jour(s)` : ''}` : ''}.`,
+        sens: 'Le recensement de minuit ne voit pas les enfants entrés et sortis dans la journée : le vrai besoin en lits, au moment le plus chargé, est plus haut. Le pic attendu est calculé exactement, sans aucune heure, en supposant seulement que les entrées et les sorties suivent la même loi horaire.',
+        decision: 'NERA prévoit aussi le pic attendu (comptage « pic ») : c’est la prévision à comparer aux lits pour décider s’il en faudra davantage demain ; le recensement de minuit reste la série du TOM officiel.',
+        faire: 'Présenter au service le taux moyen ET le pic ; comparer, dans « Résultats du modèle », l’erreur de prévision du pic à celle du recensement (bancs du comptage « pic »).' } } },
     { t: 'Occupation heure par heure : pic, surnombre et incertitude (heures inconnues)', nom: 'Surnombre dans la journée', banc: 'lecture', f: (c, res) => {
       const m = res?.mesures; if (!m) return null
       return { constat: `Avec sorties ${m.f.s1}–${m.f.s2} h et entrées ${m.f.e1}–${m.f.e2} h : pic moyen ${f(m.picMoyen, 2)} enfants, présence moyenne ${f(m.moyP, 2)}${c.lits ? ` ; ${f(m.attendus, 1)} jour(s) en surnombre attendus [${m.icBas} ; ${m.icHaut}], dont ${m.certains} certain(s) et ${m.possibles} possible(s)` : ''}.`,
@@ -568,14 +569,21 @@
         sens: 'L’issue dit comment se terminent les séjours ; une part élevée de non renseignées rend tous les taux incertains (on ne sait pas si ce sont des sorties ordinaires).',
         decision: 'Non utilisée comme entrée (connue après coup) ; elle sert à estimer la durée des séjours sans sortie écrite (banque des durées par issue).',
         faire: nr / tot > 0.1 ? 'Reprendre la colonne Observation sur les photos pour les issues non renseignées.' : 'Rien à corriger.' } } },
-    { t: 'Admissions selon le jour de la semaine', nom: 'Jour d’enregistrement', banc: 'D5', f: (c) => {
+    { t: 'Admissions selon le jour de la semaine', nom: 'Jour d’enregistrement et jour d’entrée', banc: 'D5', f: (c) => {
       const s = c.st?.semaine; if (!s) return null
       const n = s.reduce((a, b) => a + b, 0); if (n < 14) return null
-      const e = n / 7, chi = s.reduce((a, o) => a + (o - e) ** 2 / e, 0), p = S.pKhi2(chi, 6), hi = s.indexOf(Math.max(...s)), lo = s.indexOf(Math.min(...s))
-      return { constat: `Jour le plus fréquent : ${JOURS_SEMAINE[hi]} (${s[hi]}), le moins fréquent : ${JOURS_SEMAINE[lo]} (${s[lo]}) ; ${p < 0.05 ? 'les jours ne sont pas également chargés' : 'pas de différence nette entre les jours'} (χ² = ${f(chi, 1)}, p ${pe(p)}).`,
-        sens: p < 0.05 ? `Les admissions ne se répartissent pas également sur la semaine${hi === 0 ? ' ; un pic le lundi peut venir d’enregistrements regroupés après le week-end plutôt que d’arrivées réelles' : ''}.` : 'Les admissions se répartissent à peu près également sur la semaine.',
-        decision: p < 0.05 ? 'Rythme hebdomadaire des admissions : le jour de la semaine est une entrée utile du SVR.' : 'Pas de rythme hebdomadaire des admissions : le jour de la semaine apportera peu.',
-        faire: 'Banc D5 ; si le pic du lundi est un artefact d’enregistrement, utiliser la date d’entrée plutôt que la date d’enregistrement.' } } },
+      const khi = (v) => { const m = v.reduce((a, b) => a + b, 0), e = m / 7, x = v.reduce((a, o) => a + (o - e) ** 2 / e, 0); return { x, p: S.pKhi2(x, 6), m } }
+      const k = khi(s), p = k.p, hi = s.indexOf(Math.max(...s)), lo = s.indexOf(Math.min(...s))
+      const se = c.st.semaineEntree ?? [], ke = se.some((v) => v) ? khi(se) : null, ec = c.st.ecartsEntree ?? []
+      const lundiR = 100 * s[0] / n, lundiE = ke ? 100 * se[0] / ke.m : null, tard = ec.length ? 100 * ec.filter((x) => x > 0).length / ec.length : 0, neg = ec.filter((x) => x < 0).length
+      const regroupe = ke && lundiR - lundiE > 3
+      return { constat: `Enregistrement : jour le plus fréquent ${JOURS_SEMAINE[hi]} (${s[hi]}), le moins fréquent ${JOURS_SEMAINE[lo]} (${s[lo]}) ; χ² = ${f(k.x, 1)}, p ${pe(p)}.`
+          + (ke ? ` Entrée écrite (${ke.m} lignes) : χ² = ${f(ke.x, 1)}, p ${pe(ke.p)} ; lundi ${f(lundiR, 1)} % à l’enregistrement contre ${f(lundiE, 1)} % à l’entrée ; ${f(tard, 1)} % des lignes enregistrées après le jour d’entrée${neg ? `, ${neg} avant (incohérent)` : ''}.` : ''),
+        sens: (regroupe ? 'Le lundi est plus chargé à l’enregistrement qu’à l’entrée : une partie des admissions du week-end est inscrite le lundi. La date d’enregistrement déforme le rythme réel.'
+          : ke ? 'Les deux dates donnent le même rythme : l’enregistrement suit les arrivées réelles.' : p < 0.05 ? 'Les admissions ne se répartissent pas également sur la semaine.' : 'Les admissions se répartissent à peu près également sur la semaine.')
+          + ((ke ? ke.p : p) < 0.05 ? ' Par la date d’entrée, les jours ne sont pas également chargés : il existe un vrai rythme hebdomadaire.' : ke ? ' Par la date d’entrée, pas de rythme hebdomadaire net.' : ''),
+        decision: `Le prétraitement date les admissions et l’occupation par la date d’entrée écrite (la date d’enregistrement ne sert qu’à défaut)${regroupe ? ' : ce graphique le justifie' : ''}. ${(ke ? ke.p : p) < 0.05 ? 'Le jour de la semaine est une entrée utile du SVR.' : 'Le jour de la semaine apportera peu au SVR.'}`,
+        faire: `Banc D5 (variables du calendrier).${neg ? ` Vérifier sur les photos les ${neg} ligne(s) enregistrée(s) avant l’entrée.` : ''}${regroupe ? ' Citer ce décalage dans le mémoire (biais de la date d’enregistrement).' : ''}` } } },
     { t: 'Quartiers de résidence les plus fréquents', nom: 'Aire de recrutement', banc: 'description', f: (c) => {
       const Q = c.st?.quartiers; if (!Q) return null
       const o = Object.values(Q).sort((a, b) => b - a), tot = o.reduce((a, b) => a + b, 0); if (!tot) return null
@@ -787,7 +795,7 @@
     'Âge et sexe des enfants': [3, 'Décrire le case-mix du service.', ''],
     'Principales causes d’hospitalisation': [3, 'Identifier les causes qui commandent la charge du service.', 'Le regroupement des diagnostics en causes est une étape du prétraitement (abréviations APG, GEF…).'],
     'Issue du séjour': [1, 'Vérifier que l’issue est renseignée.', 'L’issue sert à classer les séjours sans durée (parti ou encore hospitalisé) et à estimer leur durée (P1).'],
-    'Admissions selon le jour de la semaine': [1, 'Repérer un artefact d’enregistrement (inscriptions regroupées) ou un vrai rythme.', 'Si les inscriptions sont regroupées, la date d’entrée (et non d’enregistrement) doit dater les admissions.'],
+    'Admissions selon le jour de la semaine': [1, 'Comparer la date d’enregistrement et la date d’entrée : artefact d’inscription (lundi chargé) ou vrai rythme.', 'Justifie que le prétraitement date les admissions par la date d’entrée écrite.'],
     'Quartiers de résidence les plus fréquents': [3, 'Décrire l’aire de recrutement.', 'Les écritures d’un même quartier sont regroupées (abréviations) ; le quartier reste hors du modèle (donnée personnelle).'],
     'Durée moyenne de séjour selon l’âge': [2, 'Mesurer le lien entre âge et durée sur toutes les lignes.', 'Un lien net fait de l’âge une variable d’estimation des durées inconnues.'],
     'Transfusions par mois': [3, 'Suivre un marqueur de gravité saisonnière.', ''],
@@ -810,13 +818,14 @@
   const roleDe = (t) => (triage() && ROLES_TRIAGE[t]) || ROLES[t] || null
 
   // ── Encadré et branchement sous chaque analyse ─────────────────────────────────────────
-  const bloc = (r, t) => { if (!r) return ''
+  const bloc = (r, t, banc) => { if (!r) return ''
     const ro = roleDe(t), et = ro ? ETAPES[ro[0]] : null
     return `<div class="ind-conclusion"><div class="ind-conclusion-k">${ICO}Conclusion pour le modèle${et ? ` <span class="ind-etape">· étape ${ro[0]} du projet : ${et[0]}</span>` : ''}</div>
     ${ro ? `<p><b>À quoi sert cette analyse :</b> ${ro[1]}</p>` : ''}
     <p><b>Constat :</b> ${r.constat}</p><p><b>Ce que cela signifie :</b> ${r.sens}</p>
     ${ro?.[2] ? `<p><b>Lien avec le prétraitement :</b> ${ro[2]}</p>` : ''}
     <p><b>Décision pour le modèle NERA :</b> ${r.decision}</p><p><b>Démarche à suivre :</b> ${r.faire}</p>
+    ${window.resultatBanc?.(banc) ?? ''}
     ${et ? `<p><b>Pour la suite du projet :</b> ${et[1]}</p>` : ''}</div>` }
   const actives = () => [...(triage() ? reglesTriage : regles), ...communes.filter((r) => !(triage() ? reglesTriage : regles).some((s) => s.t === r.t))]
   const premiereVariante = (c) => !cacheIndicateurs?.variantes || c.d === cacheIndicateurs.variantes[0].d
@@ -839,7 +848,7 @@
       const regle = actives().find((r) => r.t === sec.t)
       let x = null
       try { x = regle ? regle.f(c, res) : null } catch (e) { console.warn('conclusion', sec.t, e) }
-      res.html = (res.html ?? '') + bloc(x ?? enAttente(res, regle), sec.t)
+      res.html = (res.html ?? '') + bloc(x ?? enAttente(res, regle), sec.t, typeof regle?.banc === 'function' ? regle.banc() : regle?.banc)
       return res
     }
   }
@@ -911,7 +920,7 @@
   syn?.sections.push({ t: PRETRAIT, rendre: (c) => {
     const lignes = triage() ? lignesPretraitementTriage() : (c.d?.reglages ? lignesPretraitementLit(c) : null)
     if (!lignes) return { html: vide('Le prétraitement s’affichera dès que des lignes datées seront saisies.') }
-    return { html: `<div class="table-wrap ind-recap"><table class="table"><thead><tr><th>Étape</th><th>Ce qui est fait</th><th>Sur vos données</th><th>À quoi cela sert pour la suite</th><th>Banc</th></tr></thead><tbody>${lignes.map((l) => `<tr>${l.map((v) => `<td>${v}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`,
+    return { html: `<div class="table-wrap ind-recap"><table class="table"><thead><tr><th>Étape</th><th>Ce qui est fait</th><th>Sur vos données</th><th>À quoi cela sert pour la suite</th><th>Banc</th></tr></thead><tbody>${lignes.map((l) => `<tr>${l.map((v, k) => `<td>${v}${k === l.length - 1 ? (window.verdictBancCourt?.(v) ?? '') : ''}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`,
       lecture: `le <b>prétraitement</b> transforme ${triage() ? 'les passages écrits à la main en un tableau de variables propres et une cible grave / non grave' : 'les lignes du registre (une par séjour) en une série jour par jour d’enfants présents, la cible du modèle, puis en variables d’entrée'}. Chaque étape répond à un défaut réel du registre ; chaque choix est vérifié par un banc ${triage() ? 'T' : 'P'} du dépôt nera-modele, qui compare les variantes sur les mêmes jours. Un choix qui ne change pas les prévisions de façon significative est sans conséquence ; sinon il doit être justifié par autre chose que l’erreur (loi de Little, comptages réels, vraisemblance clinique). Les réglages se changent dans le menu « Calcul ».` }
   } })
   syn?.sections.push({ t: RECAP, rendre: (c) => {

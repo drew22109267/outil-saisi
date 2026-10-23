@@ -146,3 +146,36 @@ def test_depart_ecrit_sans_date_jamais_encore_hospitalise():
     assert rapport.partis_sans_duree == 1
     occ = reconstituer_occupation(s, "2026-01-06", lits=1)
     assert occ["presents"].max() == 1                            # seul l'enfant sans issue est compté
+
+
+def test_loi_du_pic_egale_au_denombrement_de_tous_les_ordres():
+    # Pour chaque (entrées, sorties), on énumère tous les ordres possibles et on compare à la formule de réflexion.
+    from itertools import permutations
+    from traitement.occupation import loi_du_pic
+    for a in range(0, 5):
+        for s in range(0, 5):
+            ordres = set(permutations([1] * a + [-1] * s))
+            maxima = []
+            for o in ordres:
+                niveau, haut = 0, 0
+                for pas in o:
+                    niveau += pas; haut = max(haut, niveau)
+                maxima.append(haut)
+            survie = loi_du_pic(a, s)
+            for k in range(a + 1):
+                assert survie[k] == pytest.approx(sum(m >= k for m in maxima) / len(maxima))
+
+
+def test_pic_attendu_dans_l_encadrement_exact():
+    # A : 1er → 3 ; B : entre le 2 et sort le 3 ; C : entre le 3, encore là. Le 3 : début 2, 1 entrée, 2 sorties.
+    df = table([("PED", "2026-01-01", "2026-01-03", "Sortie", False),
+                ("PED", "2026-01-02", "2026-01-03", "Sortie", False),
+                ("PED", "2026-01-03", None, None, False)])
+    s, _ = preparer_sejours(df, "PED", "2026-01-05")
+    occ = reconstituer_occupation(s, "2026-01-05", comptage="pic")
+    j3 = occ.loc["2026-01-03"]
+    assert (j3["pic_bas"], j3["pic_haut"]) == (2, 3)
+    # 1 entrée et 2 sorties dans un ordre au hasard : l'entrée vient en premier une fois sur trois → pic 3.
+    assert j3["pic_attendu"] == pytest.approx(2 + 1 / 3)
+    assert occ["presents"].equals(occ["pic_attendu"])
+    assert ((occ["pic_bas"] <= occ["pic_attendu"]) & (occ["pic_attendu"] <= occ["pic_haut"])).all()

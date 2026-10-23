@@ -725,7 +725,7 @@
   </section>
 </div>
 
-<script src="registres.js?v=35"></script>
+<script src="registres.js?v=37"></script>
 <script>
 // ── Utilitaires ──────────────────────────────────────────────
 const $ = (s) => document.querySelector(s)
@@ -2034,13 +2034,15 @@ const RE_DECES = /d[ée]c[éèe]d|d[ée]c[eè]s|\bdcd\b/i
 // Mêmes calculs que l'application NERA et la chaîne d'analyse (backend/modeles/nera).
 const PSEUDO_LIGNES = 10
 const MAX_NUITS = 90                 // au-delà : erreur d'écriture, durée traitée comme absente (NERA : max_nuits)
-// Réglages du calcul (barre des indicateurs). Les valeurs par défaut sont celles de NERA (chargement.py) :
+// Réglages du calcul (barre des indicateurs). Les valeurs par défaut sont celles RETENUES pour NERA (lancer_tout.sh,
+// banc P1–P8 : --inconnues estimee --fenetre-censure p95 --comptage minuit) :
 //   seuil      part minimale de durées connues dans chaque mois de la période exploitable ;
-//   inconnues  'exclure' (NERA par défaut), 'mediane' (médiane des séjours connus) ou 'estimee' (médiane des séjours
-//              de même prix, sinon de même issue : nera/imputation.py) ;
-//   censure    'fixe' (NERA, 30 jours) ou 'p95' : sans sortie, « encore hospitalisé » seulement si admis depuis moins
+//   inconnues  'exclure', 'mediane' (médiane des séjours connus) ou 'estimee' (médiane des séjours de même prix,
+//              sinon de même issue : traitement/imputation.py). Avec 'exclure', les mois où trop de durées manquent
+//              tombent sous le seuil et la période exploitable se réduit à quelques semaines ;
+//   censure    'fixe' (30 jours) ou 'p95' : sans sortie, « encore hospitalisé » seulement si admis depuis moins
 //              de p95 nuits (95 % des séjours sont plus courts) ; au-delà, l'enfant est presque sûrement sorti.
-const METHODE_DEFAUT = { seuil: 0.9, inconnues: 'exclure', censure: 'fixe', comptage: 'minuit', heureEntree: 12, heureSortie: 13, dureeMemeJour: 8 }
+const METHODE_DEFAUT = { seuil: 0.9, inconnues: 'estimee', censure: 'p95', comptage: 'minuit', heureEntree: 12, heureSortie: 13, dureeMemeJour: 8 }
 // Une date suivie d'un « ? » (doute à la transcription) reste utilisable pour les calculs.
 const lireDateSouple = (v) => lireDate(String(v ?? '').replace(/\s*\?+\s*$/, '').trim())
 function calculerIndicateurs(lits, par, methode = METHODE_DEFAUT) {
@@ -2223,6 +2225,20 @@ function calculerIndicateurs(lits, par, methode = METHODE_DEFAUT) {
   const minuitSerie = comptage === 'minuit' ? presents : recenser(finsAttendues, 'minuit')
   const picBas = minuitSerie.map((v, i) => Math.max(v, i ? minuitSerie[i - 1] : v))
   const picHaut = comptage === 'journee' ? presents : recenser(finsAttendues, 'journee')
+  // Pic attendu, sans aucune heure : les A entrées et les S sorties du jour arrivent dans un ordre au hasard (heures
+  // indépendantes, même loi horaire quelle qu'elle soit). Loi exacte du maximum de la marche (principe de
+  // réflexion) : P(M ≥ k) = C(A+S, S+k) / C(A+S, A) pour k > max(0, A − S) ; pic = N₀ + M. Même calcul que
+  // traitement/occupation.py (pic_attendu, pic_q80).
+  const lnC = (nn, k) => { let t = 0; for (let i = 1; i <= k; i++) t += Math.log((nn - k + i) / i); return t }
+  const picLoi = picHaut.map((h, i) => {
+    const n0 = i ? minuitSerie[i - 1] : Math.max(minuitSerie[0] - adm[0], 0), a = Math.max(Math.round(h - n0), 0)
+    const s = Math.min(Math.max(Math.round(n0 + a - minuitSerie[i]), 0), Math.round(n0) + a), nn = a + s, plancher = Math.max(0, a - s)
+    const survie = Array.from({ length: a + 2 }, (_, k) => (k <= plancher ? 1 : k > a ? 0 : Math.exp(lnC(nn, s + k) - lnC(nn, a))))
+    const esp = survie.slice(1).reduce((x, y) => x + y, 0), q80 = survie.findIndex((p, k) => k <= a && survie[k + 1] <= 0.2 + 1e-12)
+    const borne = (v) => Math.min(Math.max(v, picBas[i]), h)
+    return { att: borne(n0 + esp), q80: borne(n0 + q80) }
+  })
+  const picAttendu = picLoi.map((x) => x.att), picQ80 = picLoi.map((x) => x.q80)
   const termines = finsAttendues.filter((f) => f.reelle && f.jour > debut && f.jour <= fin + 1)
   // Regroupement des indicateurs : jour, semaine (commençant le lundi), mois ou année.
   const cle = (j) => (par === 'annee' ? versDate(j).slice(0, 4) : par === 'jour' ? versDate(j) : par === 'semaine' ? `S${versDate(j - ((new Date(j * 86400000).getUTCDay() + 6) % 7))}` : moisDe(j))
@@ -2256,7 +2272,7 @@ function calculerIndicateurs(lits, par, methode = METHODE_DEFAUT) {
     debutNum: debut, adm, premierSaisi: versDate(premierSaisi), dernierSaisi: versDate(dernierSaisi), base: versDate(base),
     sorties: termines.map((f) => ({ jour: f.jour, poids: f.poids, nuits: f.jour - f.x.entree, l: f.x.l })),
     // Tous les séjours (pour la simulation de Monte-Carlo et l'analyse de survie) et la fin de l'observation.
-    sejours, extraction, litsJour, changementsLits: changements, picBas, picHaut }
+    sejours, extraction, litsJour, changementsLits: changements, picBas, picHaut, picAttendu, picQ80 }
 }
 
 // ── Statistiques descriptives de la saisie (toutes les lignes de la période saisie) ──────────
@@ -2345,12 +2361,20 @@ function statistiquesSaisie() {
   for (const x of lignes) { const t = tranche(x), s = sexe(x); if (ages[t] && s !== '?') ages[t][s]++ }
   const semaine = [0, 0, 0, 0, 0, 0, 0]
   for (const x of lignes) semaine[(new Date(x.j * 86400000).getUTCDay() + 6) % 7]++
+  // Même décompte selon la date d'entrée écrite (si elle est lisible et distincte de la date de référence) : un pic du
+  // lundi présent seulement à l'enregistrement signale des inscriptions regroupées après le week-end.
+  // ecarts = date de référence − date d'entrée, en jours (0 : inscrit le jour même).
+  const semaineEntree = [0, 0, 0, 0, 0, 0, 0], ecartsEntree = []
+  if (r.dateReference !== 'date_entree') for (const x of lignes) {
+    const e = lireDate(x.l.date_entree ?? ''); if (!e) continue
+    const je = jourNum(e.d); semaineEntree[(new Date(je * 86400000).getUTCDay() + 6) % 7]++; ecartsEntree.push(x.j - je)
+  }
   const issues = compter((x) => issueDe(x.l)), causes = compter((x) => causeDe(x.l))
   const nbJoursEcrits = lignes.filter((x) => /\d/.test(x.l.nb_jours ?? '')).length
   const sortiesEcrites = lignes.filter((x) => lireDate(x.l.date_sortie ?? '')).length
   const agesMois = lignes.map((x) => ageEnMois(x.l.age)).filter((m) => m !== null).sort((a, b) => a - b)
   const quartiers = compter((x) => quartierDe(x.l) ?? 'Non renseigné')
-  return { n: lignes.length, parMois, ages, semaine, issues, causes, nbJoursEcrits, sortiesEcrites, quartiers,
+  return { n: lignes.length, parMois, ages, semaine, semaineEntree, ecartsEntree, issues, causes, nbJoursEcrits, sortiesEcrites, quartiers,
     ageMedian: agesMois.length ? agesMois[Math.floor(agesMois.length / 2)] : null,
   }
 }
@@ -2413,13 +2437,15 @@ else { construireFormulaire(); majSuggestions(); majListePhotos(); sauver(); nou
 </script>
 <script src="calendrier.js?v=1"></script>
 <script src="statistiques.js?v=12"></script>
-<script src="indicateurs.js?v=65"></script>
-<script src="occupation-validation.js?v=13"></script>
+<script src="indicateurs.js?v=66"></script>
+<script src="occupation-validation.js?v=14"></script>
 <script src="temps.js?v=5"></script>
 <script src="legende.js?v=1"></script>
 <script src="synthese.js?v=12"></script>
 <script src="menu-indicateurs.js?v=2"></script>
-<script src="conclusions.js?v=7"></script>
-<script src="barre-haut.js?v=3"></script>
+<script src="conclusions.js?v=9"></script>
+<script src="resultats-modele.js?v=2"></script>
+<script src="rapport.js?v=3"></script>
+<script src="barre-haut.js?v=5"></script>
 </body>
 </html>

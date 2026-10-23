@@ -37,9 +37,37 @@ vaut, chaque jour, le nombre de séjours calculés dont d est la nuit incertaine
 
 Les sorties sont pondérées de même : la sortie d'un séjour calculé compte pour p le jour e + n − 1
 et pour 1 − p le jour e + n. Les indicateurs (traitement.indicateurs) se calculent avec ces poids.
+
+Pic de la journée sans aucune heure — la loi exacte du maximum
+--------------------------------------------------------------
+Question : combien de lits faut-il au moment le plus chargé de la journée d ? Le registre ne donne aucune heure,
+et le service reçoit 24 h sur 24. On connaît seulement, pour le jour d :
+    N₀ = présents au début du jour (minuit de d − 1),  A = entrées du jour,  S = sorties du jour,
+    N₁ = N₀ + A − S = présents à la fin du jour (minuit de d).
+Au fil de la journée, chaque entrée fait +1 et chaque sortie −1 : le nombre de présents est une marche de A pas
+montants et S pas descendants, et le pic vaut N₀ + M, M = plus haut point de la marche.
+
+1. Encadrement exact, sans aucune hypothèse :  max(N₀, N₁) ≤ pic ≤ N₀ + A
+   (toutes les sorties avant les entrées : le pic est au début ou à la fin ; toutes les entrées avant les sorties :
+   tout le monde est là en même temps). Colonnes pic_bas et pic_haut.
+
+2. Pic attendu, avec une seule hypothèse : les heures d'entrée et de sortie sont indépendantes et suivent la MÊME
+   loi horaire, quelle qu'elle soit (inutile de la connaître : accueil 24 h sur 24, pas d'heure de sortie fixe).
+   Alors toutes les façons d'entrelacer les A entrées et les S sorties sont également probables : il y en a
+   C(A+S, A). Par le principe de réflexion (André, 1887), les marches qui atteignent le niveau k ≥ max(0, A − S)
+   sont aussi nombreuses que celles qui finissent en 2k − (A − S), soit C(A+S, S+k). D'où la loi exacte :
+        P(M ≥ k) = C(A+S, S+k) / C(A+S, A)      pour max(0, A − S) < k ≤ A   (= 1 en dessous)
+        E[pic]   = N₀ + Σ_{k ≥ 1} P(M ≥ k)
+   et ses quantiles (pic_q80 : dépassé au plus un jour sur cinq). Aucun tirage au hasard : le calcul est exact et
+   reproductible. Si en réalité les sorties ont plutôt lieu le jour, le vrai pic reste dans l'encadrement 1 ; le
+   pic attendu en est la valeur centrale la plus neutre (aucune heure privilégiée).
+   Approximation : un séjour entré et sorti le même jour doit entrer avant de sortir ; on traite ses deux pas comme
+   les autres (effet faible : quelques séjours du même jour par mois). Avec des présents fractionnaires (scénario
+   « attendue »), S est arrondi à l'entier le plus proche.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 import pandas as pd
@@ -86,6 +114,33 @@ def sorties_possibles(sejours: pd.DataFrame, date_extraction: str | pd.Timestamp
     ev = ev[ev["poids"] > 0].copy()
     ev["duree_nuits"] = (ev["fin"] - ev["entree"]).dt.days
     return ev.sort_values(["sejour", "fin"]).reset_index(drop=True)
+
+
+def loi_du_pic(entrees: int, sorties: int) -> list[float]:
+    """
+    P(M ≥ k), k = 0 … entrees : loi exacte du plus haut point M d'une marche de `entrees` pas +1 et `sorties`
+    pas −1 dans un ordre au hasard (les C(n, entrees) suites également probables ; principe de réflexion).
+    """
+    a, s = int(entrees), int(sorties)
+    n, total, plancher = a + s, math.comb(a + s, a), max(0, a - s)
+    return [1.0 if k <= plancher else math.comb(n, s + k) / total for k in range(a + 1)]
+
+
+def pic_journalier(debut: pd.Series, fin: pd.Series, entrees: pd.Series, quantiles=(0.8, 0.95)) -> pd.DataFrame:
+    """
+    Pic attendu de chaque jour et ses quantiles (voir le haut du module), à partir des présents au début du jour
+    (`debut` = minuit de la veille), à la fin (`fin` = minuit du jour) et des entrées du jour.
+    """
+    lignes = []
+    for n0, n1, a in zip(debut.to_numpy(float), fin.to_numpy(float), entrees.to_numpy(float)):
+        a = int(round(a))
+        s = int(min(max(round(n0 + a - n1), 0), round(n0) + a))       # sorties du jour (entier)
+        survie = loi_du_pic(a, s) + [0.0]                                # P(M ≥ a + 1) = 0
+        esp = sum(survie[1:])                                           # E[M] = Σ_{k ≥ 1} P(M ≥ k)
+        # quantile q : plus petit k tel que P(M ≤ k) ≥ q, c'est-à-dire P(M ≥ k + 1) ≤ 1 − q
+        q = [next(k for k in range(a + 1) if survie[k + 1] <= 1 - qq + 1e-12) for qq in quantiles]
+        lignes.append([n0 + esp, *(n0 + k for k in q)])
+    return pd.DataFrame(lignes, index=debut.index, columns=["pic_attendu", *(f"pic_q{round(100 * qq)}" for qq in quantiles)])
 
 
 def lits_par_jour(lits, jours: pd.DatetimeIndex) -> pd.Series:
@@ -135,9 +190,13 @@ def reconstituer_occupation(sejours: pd.DataFrame, date_extraction: str | pd.Tim
                                         l'enfant est là, avec les heures typiques `heures`) :
                                         jour d'entrée 1 − h_e/24, jours pleins 1, jour de sortie h_s/24,
                                         séjour du même jour durée/24
+                          « pic »     : plus grand nombre d'enfants présents EN MÊME TEMPS dans la journée, valeur
+                                        attendue (pic_attendu, loi exacte sans heure : voir le haut du module)
       pic_bas, pic_haut encadrement EXACT du plus grand nombre d'enfants présents en même temps dans la
                         journée d (sans hypothèse d'heure) : max(minuit de d − 1, minuit de d) ≤ pic ≤
                         comptage journalier de d
+      pic_attendu, pic_q80, pic_q95   pic attendu et ses quantiles 80 % et 95 % (ordre des entrées et des
+                        sorties au hasard, loi exacte par le principe de réflexion)
       dont_censures     parmi eux, ceux dont la sortie n'est pas encore connue
       admissions        entrées du jour
       sorties_*         sorties du jour, par issue (pondérées pour les sorties calculées)
@@ -148,10 +207,10 @@ def reconstituer_occupation(sejours: pd.DataFrame, date_extraction: str | pd.Tim
     if s.empty:
         raise ValueError("Aucun séjour exploitable pour reconstituer l'occupation.")
     ev = sorties_possibles(sejours, extraction, scenario)
-    if comptage not in ("minuit", "journee", "pondere"):
-        raise ValueError("comptage : « minuit », « journee » ou « pondere ».")
+    if comptage not in ("minuit", "journee", "pondere", "pic"):
+        raise ValueError("comptage : « minuit », « journee », « pondere » ou « pic ».")
     # Comptage journalier : chaque fin de séjour est décalée d'un jour pour la présence (pas pour les sorties).
-    ev_presence = ev.assign(fin=ev["fin"] + pd.Timedelta(days=1)) if comptage in ("journee", "pondere") else ev
+    ev_presence = ev.assign(fin=ev["fin"] + pd.Timedelta(days=1)) if comptage in ("journee", "pondere", "pic") else ev
     ev_jour = ev.assign(fin=ev["fin"] + pd.Timedelta(days=1))
 
     premier = pd.Timestamp(debut) if debut else s["entree"].min()
@@ -185,6 +244,15 @@ def reconstituer_occupation(sejours: pd.DataFrame, date_extraction: str | pd.Tim
     minuit = cumul(s["entree"], ev)
     occ["pic_bas"] = pd.concat([minuit, minuit.shift(1)], axis=1).max(axis=1)
     occ["pic_haut"] = cumul(s["entree"], ev_jour)
+    # Pic attendu et quantiles : début du jour = minuit de la veille (premier jour : présents − entrées du jour).
+    entrees = s["entree"].value_counts().reindex(jours, fill_value=0)
+    veille = minuit.shift(1)
+    veille.iloc[0] = max(float(minuit.iloc[0] - entrees.iloc[0]), 0.0)
+    pic = pic_journalier(veille, minuit, entrees)
+    for col in pic.columns:
+        occ[col] = pic[col].clip(lower=occ["pic_bas"], upper=occ["pic_haut"])
+    if comptage == "pic":
+        occ["presents"] = occ["pic_attendu"]
     cens = s["statut"] == "censuree"
     occ["dont_censures"] = (cumul(s.loc[cens, "entree"], ev_presence[ev_presence["sejour"].isin(s.index[cens])]).astype(int)
                             if cens.any() else 0)

@@ -156,6 +156,43 @@ Colonnes `pic_bas` et `pic_haut` de `occupation_<SERVICE>.csv` ; rubrique « Pic
 Un jour où même la borne basse dépasse les lits est un sureffectif **certain** ; si seule la borne haute les
 dépasse, il est **possible**.
 
+**Pic attendu : la loi exacte du maximum, sans aucune heure.** Notons N₀ = P_{d−1} les présents au début du jour,
+A les entrées et S les sorties du jour (n = A + S). Rangés dans l'ordre où ils se produisent, les mouvements font
+du nombre de présents une marche de A pas +1 et S pas −1 ; le pic vaut N₀ + M, M étant le plus haut point de la
+marche.
+
+*Hypothèse unique* : les heures des entrées et des sorties sont indépendantes et de **même loi**, quelle qu'elle
+soit (accueil 24 h sur 24, pas d'heure de sortie fixe). Les n! classements des heures sont alors équiprobables ;
+chaque suite de signes en regroupe A!·S!, donc les C(n, A) ordres des mouvements sont équiprobables, et la loi
+horaire elle-même n'intervient plus.
+
+*Principe de réflexion* (André, 1887) : en réfléchissant la marche après son premier passage au niveau k, on met
+en bijection les marches qui atteignent k > max(0, A − S) et celles qui finissent en 2k − (A − S), qui ont S + k
+pas montants. D'où la loi exacte :
+
+```
+P(M ≥ k) = C(A+S, S+k) / C(A+S, A)     pour max(0, A − S) < k ≤ A   (1 en dessous, 0 au-dessus de A)
+E[pic]   = N₀ + Σ_{k=1..A} P(M ≥ k)
+q_80     = N₀ + plus petit k tel que P(M ≥ k + 1) ≤ 0,2
+P(pic > lits) = P(M ≥ lits − N₀ + 1)
+```
+
+Exemple (fictif) : N₀ = 16, A = 3, S = 2, 18 lits. C(5, 3) = 10 ordres ; P(M ≥ 1) = 1, P(M ≥ 2) = C(5,4)/10 = 0,5,
+P(M ≥ 3) = C(5,5)/10 = 0,1. Le pic vaut 17 avec la probabilité 0,5, 18 avec 0,4, 19 avec 0,1 (on retrouve ces
+fréquences en écrivant les 10 ordres). Pic attendu 16 + 1,6 = 17,6 ; quantile 80 % : 18 ; P(pic > 18) = 0,1.
+L'encadrement exact disait seulement 17 ≤ pic ≤ 19 ; le comptage journalier (19) correspond au seul ordre « toutes
+les entrées avant toutes les sorties », de probabilité 1/10.
+
+Code : `loi_du_pic` et `pic_journalier` de `traitement/occupation.py` (colonnes `pic_attendu`, `pic_q80`,
+`pic_q95`), même calcul dans `calculerIndicateurs` de l'outil (courbe noire de la rubrique « Pic de la journée »).
+Aucun tirage au hasard : le résultat est exact. Test : `test_loi_du_pic_egale_au_denombrement_de_tous_les_ordres`
+compare la formule à l'énumération de tous les ordres jusqu'à 4 entrées et 4 sorties. `--comptage pic` fait du pic
+attendu la série cible de tous les scripts du modèle NERA.
+
+Limites : un séjour entré et sorti le même jour doit entrer avant de sortir (contrainte ignorée, effet faible) ;
+avec des présents fractionnaires (scénario « attendue »), S est arrondi ; si les sorties ont lieu à heures fixes,
+il faut le modèle heure par heure ci-dessous. Le vrai pic reste toujours dans l'encadrement exact.
+
 **Heure par heure, sans heure dans le registre** (section « Occupation heure par heure » de l'outil). Les heures
 d'entrée H_e et de sortie H_s sont aléatoires, de fonctions de répartition F_e et F_s (uniformes sur des fenêtres
 réglables), indépendantes d'un enfant à l'autre. Fenêtres par défaut, d'après le service : entrées sur 0–24 h
@@ -189,16 +226,17 @@ pourquoi le pic, et non la moyenne, sert à dimensionner.
 
 ### 1.2 quinquies Capacité variable
 
-Le service est passé de 15 à 20 lits à une date inconnue, et tous les lits ne sont peut-être pas utilisables.
-Le taux d'occupation utilise la capacité **de chaque jour** :
+La pédiatrie a 20 lits installés depuis longtemps, mais plusieurs sont souvent non opérationnels : la capacité
+retenue par défaut est de **18 lits** (médecine femme : 17). Le taux d'occupation utilise la capacité **de chaque
+jour** :
 
 ```
 TOM = Σ_d P_d / Σ_d lits_d          sureffectif_d = 1(P_d > lits_d)
 ```
 
 Python : `--lits-fichier lits_PED.csv` (colonnes `date_debut;lits`) ; outil : « Changements » dans le bouton
-Calcul (`01/03/25=20`). Tant que la date est inconnue, `--scenarios-lits 15 16 17 18 19 20` donne le taux pour
-chaque capacité : on présente une plage, pas un chiffre.
+Calcul (`01/03/25=20`). Tant que les périodes de lits hors service ne sont pas datées,
+`--scenarios-lits 15 16 17 18 19 20` donne le taux pour chaque capacité : on présente une plage, pas un chiffre.
 
 ### 1.3 Convention du nombre de jours : estimation de p avec rétrécissement
 
