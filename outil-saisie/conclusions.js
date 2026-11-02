@@ -261,6 +261,30 @@
         sens: 'Le texte au-dessus traduit les tableaux en phrases : quelles variables vont ensemble, quels profils de patients s’opposent.',
         decision: 'Résultat descriptif du chapitre « Analyse des données » ; il justifie les variables retenues mais ne fixe pas le modèle, qui est choisi par les bancs d’essai.',
         faire: 'Reformuler ce texte avec vos mots en gardant les chiffres ; signaler les axes au-delà du seuil comme « à lire avec prudence ».' } } },
+    { t: 'AFDM : variables numériques et qualitatives ensemble', nom: 'AFDM : avec les qualitatives', banc: () => (triage() ? 'T7' : 'description'), f: (c) => {
+      const F = window.analyseMultivariee?.afdm(c); if (!F || F.erreur) return null
+      const R = preparerAcp(c), cumA = R.A.inertie[0] + R.A.inertie[1], cumF = F.A.inertie[0] + F.A.inertie[1]
+      const top = F.groupes.map((g, j) => ({ nom: g.nom, type: g.type, c: F.contrib[j][0] })).sort((a, b) => b.c - a.c).slice(0, 3)
+      const qualiTete = top.some((x) => x.type === 'qualitative')
+      return { constat: `F1 + F2 de l’AFDM : ${f(cumF, 1)} % (ACP : ${f(cumA, 1)} %) ; ${F.k80} axe(s) pour 80 % ; F1 construit surtout par ${liste(top.map((x) => `${x.nom} (${f(x.c, 0)} %)`))}.`,
+        sens: qualiTete ? 'Une variable qualitative fait partie des plus fortes contributions au premier axe : les qualitatives structurent la population, ce que l’ACP (qui ne les met qu’en supplémentaires) ne montrait pas.' : 'Les variables numériques dominent encore les premiers axes : ajouter les qualitatives ne change pas la structure vue par l’ACP.',
+        decision: triage() ? 'Banc T7 : l’AFDM est comparée aux variables d’origine comme entrée du classement grave / non grave.' : 'L’AFDM décrit la population ; comme l’ACP, elle n’entre pas dans le modèle de prévision des lits (variables patient inconnues pour les jours futurs).',
+        faire: qualiTete ? 'Présenter l’AFDM à côté de l’ACP dans le mémoire et nommer l’axe porté par la variable qualitative.' : 'Garder l’ACP comme méthode principale (plus lisible) et citer l’AFDM comme vérification : même structure.' } } },
+    { t: 'Classification des patients en groupes (k-means)', nom: 'Groupes de patients', banc: () => (triage() ? 'T7' : 'description'), f: (c) => {
+      const C = window.analyseMultivariee?.classification(c); if (!C || C.erreur) return null
+      const s = C.choix.sil, gros = C.profils.slice().sort((a, b) => b.n - a.n)[0]
+      return { constat: `${C.choix.g} groupes retenus (silhouette ${f(s, 2)}) sur ${C.X.length} ${unite()} ; le plus grand groupe réunit ${f(100 * gros.n / C.X.length, 0)} % des ${unite()}.`,
+        sens: s >= 0.5 ? 'Les groupes sont nets : la population se partage en types de patients bien distincts.' : s >= 0.25 ? 'Les groupes sont modérément séparés : des types existent mais se recouvrent en partie.' : 'Les groupes se chevauchent : la population forme plutôt un continuum que des types séparés ; les profils décrivent des tendances, pas des catégories.',
+        decision: triage() ? 'Banc T7 : le groupe du passage est testé comme variable d’entrée (seul, ou ajouté aux variables d’origine).' : 'Les groupes servent à décrire la population dans le mémoire ; ils n’entrent pas dans la prévision des lits.',
+        faire: s >= 0.25 ? 'Nommer chaque groupe d’après son profil (▲ / ▼ et modalités dominantes) et vérifier sa stabilité dans la comparaison des méthodes.' : 'Ne pas présenter les groupes comme des catégories cliniques ; parler de tendances, et s’appuyer sur l’ACP.' } } },
+    { t: 'Comparaison des méthodes d’analyse multivariée (banc d’essai)', nom: 'Méthodes multivariées comparées', banc: () => (triage() ? 'T7' : 'description'), f: (c, res) => {
+      const m = res?.mesures; if (!m) return null
+      const S = m.stab, min = (v) => (v ? Math.min(...v) : NaN), sA = min(S?.acp), sF = min(S?.afdm)
+      const stables = [Number.isFinite(sA) && sA >= 0.7 ? 'ACP' : null, Number.isFinite(sF) && sF >= 0.7 ? 'AFDM' : null, S?.rand >= 0.75 ? 'k-means' : null].filter(Boolean)
+      return { constat: `Information sur deux axes : ACP ${f(m.cumA, 1)} %${m.cumF !== null ? `, AFDM ${f(m.cumF, 1)} %` : ''} ; stabilité minimale des deux premiers axes : ACP ${Number.isFinite(sA) ? f(sA, 2) : '—'}, AFDM ${Number.isFinite(sF) ? f(sF, 2) : '—'} ; k-means : Rand ${S?.rand ? f(S.rand, 2) : '—'}, silhouette ${m.sil !== null ? f(m.sil, 2) : '—'}.`,
+        sens: `Méthodes stables (même résultat sur deux moitiés de ${unite()}) : ${liste(stables) || 'aucune'}. Une méthode instable donne des axes ou des groupes qui dépendent des ${unite()} tirés : on ne l’interprète pas.`,
+        decision: stables.includes('ACP') ? 'L’ACP est retenue comme méthode principale : stable, lisible, et l’AFDM ou la classification servent de vérifications.' : 'Aucune méthode n’est assez stable pour être interprétée finement : présenter les variables une à une et leurs tests.',
+        faire: 'Citer ce tableau dans le mémoire pour justifier le choix de la méthode (critères chiffrés, pas une préférence) ; refaire la comparaison quand la saisie est complète.' } } },
   ]
 
   // ════════════════════════════════════════════════════════════════════════════════════════
@@ -763,6 +787,9 @@
     'Corrélations, qualité (cos²) et contributions des variables': [3, 'Dire quelles variables construisent chaque axe.', ''],
     'Modalités caractéristiques des axes (valeurs-test)': [3, 'Relier les axes aux profils cliniques et à l’issue.', ''],
     'Interprétation des axes': [3, 'Résumer l’ACP en phrases pour le mémoire.', ''],
+    'AFDM : variables numériques et qualitatives ensemble': [3, 'Faire entrer les variables qualitatives (cause, issue, sexe) dans la construction des axes, ce que l’ACP ne fait pas.', 'Les modalités rares sont recodées (indicatrice − p)/√p pour peser autant que les fréquentes.'],
+    'Classification des patients en groupes (k-means)': [3, 'Ranger les patients en groupes de profils voisins et décrire chaque groupe.', 'Travaille sur les axes retenus de l’ACP : le bruit des petits axes est retiré avant de former les groupes.'],
+    'Comparaison des méthodes d’analyse multivariée (banc d’essai)': [3, 'Choisir la méthode d’analyse multivariée sur des critères chiffrés (information, stabilité, lisibilité) et non par habitude.', ''],
     'Taux d’occupation par période': [3, 'Voir la saison de l’occupation et l’incertitude due aux sorties non écrites.', 'La fourchette mesure l’effet de la convention du nombre de jours (P3) et des durées inconnues (P1).'],
     'Occupation moyenne et maximale par mois': [5, 'Comparer les pics à la moyenne pour choisir le quantile à prévoir.', ''],
     'Répartition des jours selon le taux d’occupation': [7, 'Compter les jours tendus et en sureffectif.', ''],

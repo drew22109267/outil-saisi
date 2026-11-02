@@ -78,9 +78,11 @@
     parametres: 'sensibilité : l’erreur quand chaque hyperparamètre s’écarte de sa valeur retenue. Une erreur qui varie peu = choix robuste ; une erreur très sensible = valeur à justifier avec soin.',
     sensibilite: 'sensibilité des prévisions à la convention du nombre de jours (nuits ou jours) : si les conclusions ne changent pas, l’incertitude sur la convention n’est pas un problème.',
     survie: 'modèle de survie : probabilité qu’un enfant présent reste encore J0, J1, J2 jours ; il sert à prévoir les sorties et à estimer les durées manquantes.',
+    durees_inconnues: 'pour chaque méthode d’estimation des durées de séjour inconnues, on cache la durée des séjours connus, on la prédit, et on compare (validation croisée en 5 plis). <b>Erreur moyenne</b> : nombre de nuits d’écart en moyenne, plus petit = meilleur. <b>À ±1 nuit</b> : part des séjours bien retrouvés. <b>Biais</b> : négatif = la méthode raccourcit les séjours (elle sous-estime l’occupation). <b>Dans q1–q3</b> : part des vraies durées dans la fourchette donnée, 50 % attendus si l’incertitude est juste. Cette erreur dit quelle méthode retrouve le mieux une durée ; l’apport sur la PRÉVISION des lits se lit dans le banc P1 (section « Banc du prétraitement »).',
   }
   const GROUPES = [['pretraitement', 'Banc du prétraitement (P1 à P8)'], ['choix', 'Banc des choix de conception (D1 à D11)'], ['niveaux', 'Niveaux 0 à 5 : ce que chaque bloc de variables apporte'],
-    ['niveaux_tests', 'Niveaux : tests entre niveaux'], ['parametres', 'Sensibilité des hyperparamètres'], ['sensibilite', 'Sensibilité à la convention des jours'], ['survie', 'Modèle de survie (J0, J1, J2)']]
+    ['niveaux_tests', 'Niveaux : tests entre niveaux'], ['parametres', 'Sensibilité des hyperparamètres'], ['sensibilite', 'Sensibilité à la convention des jours'], ['survie', 'Modèle de survie (J0, J1, J2)'],
+    ['durees_inconnues', 'Durées de séjour inconnues : apport de chaque méthode d’estimation']]
 
   function rendreEtat() {
     const R = resultats()
@@ -102,7 +104,7 @@
   }
   // Icône : une cible (le banc vise le choix retenu).
   ICONES.banc = ['#d7263d', '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/>']
-  ONGLETS.push({ nom: 'Résultats du modèle', ico: 'banc', desc: 'Bancs d’essai de NERA : prétraitement, choix, niveaux, sensibilité', sections: [
+  ONGLETS.push({ nom: 'Résultats du modèle', ico: 'banc', desc: 'Bancs d’essai de NERA : prétraitement, durées inconnues, choix, niveaux, sensibilité', sections: [
     { t: 'Résultats importés et verdict de chaque banc', rendre: () => rendreEtat() },
     ...GROUPES.map(([g, titre]) => ({ t: titre, rendre: () => rendreGroupe(g) })),
   ] })

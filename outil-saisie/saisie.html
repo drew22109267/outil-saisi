@@ -725,7 +725,7 @@
   </section>
 </div>
 
-<script src="registres.js?v=37"></script>
+<script src="registres.js?v=38"></script>
 <script>
 // ── Utilitaires ──────────────────────────────────────────────
 const $ = (s) => document.querySelector(s)
@@ -773,6 +773,18 @@ const REGISTRES = window.REGISTRES ?? {}
 // lignes : toutes les lignes, chacune porte son service ; epingles et controles : par service.
 let etat = { lignes: [], rotations: {}, epingles: {}, controles: {}, service: null }
 try { etat = { ...etat, ...JSON.parse(localStorage.getItem(CLE_STOCKAGE)) } } catch { /* stockage indisponible */ }
+// Mention « Transcription IA à vérifier » : retirée de toutes les cases (le reste de la remarque est gardé),
+// à l'ouverture, à chaque import et à l'export. Les lignes déjà enregistrées sont nettoyées ici une fois pour toutes.
+const MENTION_IA = /\s*Transcription IA à vérifier\s*(?:[·—–:.,;\-]+\s*)?/gi
+function sansMentionIA(v) {
+  if (typeof v !== 'string' || !/Transcription IA/i.test(v)) return v
+  return v.replace(MENTION_IA, ' · ').replace(/(\s*·\s*){2,}/g, ' · ').replace(/^[\s·—–:.,;\-]+|[\s·—–:.,;\-]+$/g, '')
+}
+function nettoyerMentionIA(l) { for (const k in l) l[k] = sansMentionIA(l[k]); return l }
+if ((etat.lignes ?? []).some((l) => Object.values(l).some((v) => typeof v === 'string' && /Transcription IA/i.test(v)))) {
+  etat.lignes.forEach(nettoyerMentionIA)
+  try { localStorage.setItem(CLE_STOCKAGE, JSON.stringify(etat)) } catch { /* stockage indisponible */ }
+}
 if (Array.isArray(etat.epingles)) etat.epingles = { PED: etat.epingles }       // ancienne version
 for (const l of etat.lignes) l.service ??= 'PED'                                // ancienne version : tout était en pédiatrie
 if (!REGISTRES[etat.service]) etat.service = Object.keys(REGISTRES)[0]
@@ -1462,7 +1474,7 @@ $('#exporter').onclick = () => {
   if (!lignes.length) { message(`Aucune ligne saisie en ${registre().nom}.`, 'alerte'); return }
   telecharger(`registre-${etat.service.toLowerCase()}-${new Date().toISOString().slice(0, 10)}.csv`, [
     ['Identifiant ligne', ...colonnes().map((c) => c.l)].map(csvCellule).join(';'),
-    ...lignes.map((l) => [identifiant(l), ...colonnes().map((c) => l[c.k])].map(csvCellule).join(';'))
+    ...lignes.map((l) => [identifiant(l), ...colonnes().map((c) => sansMentionIA(l[c.k]))].map(csvCellule).join(';'))
   ])
   message(`${lignes.length} ligne(s) de ${registre().nom} exportée(s).`)
 }
@@ -1489,6 +1501,20 @@ function lireCsv(texte) {
 $('#importer').addEventListener('change', async (e) => {
   const f = e.target.files[0]; e.target.value = ''; if (!f) return
   const lignes = lireCsv(await f.text()), entete = lignes.shift() ?? []
+  // Service du fichier reconnu à ses colonnes : le registre dont les colonnes couvrent le mieux celles du fichier
+  // (part des colonnes communes rapportée au plus grand des deux nombres de colonnes). Un fichier de médecine femme
+  // (Profession, sans Sexe ni Ancien/Nouveau) ne part donc plus en pédiatrie parce que la pédiatrie était affichée.
+  const utiles = entete.filter((h) => !['photo', 'identifiantligne', ''].includes(normCol(h))).length
+  const score = (code) => { const cols = REGISTRES[code].colonnes
+    return correspondanceColonnes(entete, cols).index.filter((i) => i >= 0).length / Math.max(cols.length, utiles, 1) }
+  const meilleur = Object.keys(REGISTRES).reduce((a, b) => (score(b) > score(a) + 1e-9 ? b : a), etat.service)
+  // Reconnu sans rien demander : on bascule sur le bon service avant d'importer ; le message final le dit.
+  const serviceAvant = etat.service
+  if (meilleur !== etat.service && score(meilleur) > score(etat.service) + 0.1) { $('#service').value = meilleur; $('#service').dispatchEvent(new Event('change')) }
+  const bascule = serviceAvant !== etat.service ? `Fichier reconnu comme ${registre().nom} (le service affiché était ${REGISTRES[serviceAvant].nom}) · ` : ''
+  // Toute ligne retirée par un import (remplacée, ou importée dans le mauvais service) va dans la corbeille :
+  // on peut la remettre (« Corbeille » dans le menu profil).
+  const aLaCorbeille = (ls, motif) => { etat.corbeille = [...(etat.corbeille ?? []), ...ls.map((l) => ({ ...l, retireeLe: new Date().toISOString(), motif }))] }
   const { index, extra } = correspondanceColonnes(entete)
   if (index.filter((i) => i >= 0).length < colonnes().length / 2) {
     message(`Ce fichier ne correspond pas au registre de ${registre().nom}. Choisissez le bon service avant de le reprendre.`, 'alerte'); return
@@ -1499,7 +1525,7 @@ $('#importer').addEventListener('change', async (e) => {
     const l = { photo: iPhoto >= 0 ? String(v[iPhoto] ?? '').trim() : '', service: etat.service }
     colonnes().forEach((c, j) => { l[c.k] = index[j] >= 0 ? String(v[index[j]] ?? '').trim() : '' })
     completerLigne(l, v, extra)
-    return l
+    return nettoyerMentionIA(l)
   })
   // Nouvelle transcription des mêmes lignes du registre : une ligne du fichier qui a le même mois, le même N° et
   // une date d'enregistrement à moins de 7 jours d'une ligne déjà saisie est la même ligne du registre, transcrite
@@ -1527,6 +1553,7 @@ $('#importer').addEventListener('change', async (e) => {
     if (confirm(`${remplacements.length} ligne(s) du fichier ont le même mois et le même N° qu'une ligne déjà saisie (${ex}…) : c'est une autre transcription des mêmes lignes du registre.\n\nOK : remplacer les anciennes lignes par celles du fichier.\nAnnuler : garder les anciennes ; seules les lignes vraiment nouvelles seront ajoutées.`)) {
       const retirer = new Set(remplacements.map((r) => r.vieille))
       for (const { vieille, l } of remplacements) if (!l.photo && vieille.photo) l.photo = vieille.photo
+      aLaCorbeille([...retirer], `remplacée par l'import de ${f.name}`)
       etat.lignes = etat.lignes.filter((x) => !retirer.has(x)); remplacees = retirer.size
     } else {
       const ignorer = new Set(remplacements.map((r) => r.l))
@@ -1543,11 +1570,23 @@ $('#importer').addEventListener('change', async (e) => {
     deja.add(k); ajoutees.push(l)                                              // évite aussi les doublons du fichier
   }
   etat.lignes = etat.lignes.concat(ajoutees)
+  // Lignes de ce même fichier importées auparavant dans le mauvais service (même photo et même diagnostic) :
+  // elles sont retirées de ce service sans rien demander (elles sont maintenant dans le bon) et gardées dans la corbeille.
+  let erreursRetirees = ''
+  const cleErreur = (l) => `${String(l.photo ?? '').trim()}|${String(l.diagnostic ?? '').trim()}|${String(l.age ?? '').trim()}`
+  const duFichier = new Set(nouvelles.filter((l) => l.photo).map(cleErreur))
+  const erreurs = etat.lignes.filter((l) => l.service !== etat.service && l.photo && duFichier.has(cleErreur(l)))
+  if (erreurs.length) {
+    const ou = [...new Set(erreurs.map((l) => REGISTRES[l.service]?.nom ?? l.service))].join(', ')
+    const retirer = new Set(erreurs); etat.lignes = etat.lignes.filter((l) => !retirer.has(l))
+    aLaCorbeille(erreurs, `importée par erreur en ${ou}`)
+    erreursRetirees = ` · ${erreurs.length} ligne(s) retirée(s) de ${ou}, où elles avaient été importées par erreur`
+  }
   trierLignes()
   sauver(); majSuggestions(); majListePhotos(); nouvelleLigne()
-  message(ajoutees.length
-    ? `${ajoutees.length - remplacees} nouvelle(s) ligne(s) ajoutée(s) en ${registre().nom}${remplacees ? ` · ${remplacees} ancienne(s) transcription(s) remplacée(s)` : ''} · ${nouvelles.length - ajoutees.length} déjà présente(s), ignorée(s). Total : ${lignesService().length}.`
-    : `Rien de nouveau : les ${nouvelles.length} ligne(s) du fichier sont déjà dans ${registre().nom}.`)
+  message(bascule + (ajoutees.length
+    ? `${ajoutees.length - remplacees} nouvelle(s) ligne(s) ajoutée(s) en ${registre().nom}${remplacees ? ` · ${remplacees} ancienne(s) transcription(s) remplacée(s) (gardées dans la corbeille)` : ''} · ${nouvelles.length - ajoutees.length} déjà présente(s), ignorée(s). Total : ${lignesService().length}.`
+    : `Rien de nouveau : les ${nouvelles.length} ligne(s) du fichier sont déjà dans ${registre().nom}.`) + erreursRetirees)
 })
 // Colonnes du CSV → colonnes du registre. Un fichier transcrit ailleurs peut nommer autrement les mêmes
 // colonnes (« Quartier » pour « Domicile », « Montant » pour « Prix »…) : on compare les noms sans accents ni
@@ -1568,9 +1607,9 @@ const SYNONYMES = {
   nb_jours: ['nombredejours', 'nbjours', 'nbredejours', 'nbjour', 'nbrejour', 'nbrejrs', 'nbjrs', 'nbrejours'], prix: ['montant', 'prix'],
   observation: ['devenir', 'issue', 'observation'], remarque: ['remarquedesaisie', 'remarque'],
 }
-function correspondanceColonnes(entete) {
+function correspondanceColonnes(entete, cols = colonnes()) {
   const n = entete.map(normCol)
-  const index = colonnes().map((c) => { let i = n.indexOf(normCol(c.l)); for (const s of SYNONYMES[c.k] ?? []) if (i < 0) i = n.indexOf(s); return i })
+  const index = cols.map((c) => { let i = n.indexOf(normCol(c.l)); for (const s of SYNONYMES[c.k] ?? []) if (i < 0) i = n.indexOf(s); return i })
   const pris = new Set(index), trouve = (...noms) => noms.map((x) => n.indexOf(x)).find((i) => i >= 0 && !pris.has(i)) ?? -1
   return { index, extra: { symptomes: trouve('signesetsymptomes', 'signessymptomes', 'symptomes', 'signesymptome', 'signesymptomes', 'signessymptome'),
     transfusion: trouve('transfusion'), observations: trouve('observations', 'annotationrouge', 'annotation', 'annotations'), dgtb: trouve('dgtb') } }
@@ -1690,6 +1729,7 @@ $('#restaurer').addEventListener('change', async (e) => {
 $('#sauvApercu').addEventListener('click', (e) => {
   const b = e.target.closest('[data-restaurer]'); if (!b || !sauvegardeLue) return
   const o = sauvegardeLue
+  o.etat.lignes.forEach(nettoyerMentionIA)                       // ancienne sauvegarde : mention retirée
   if (b.dataset.restaurer === 'remplacer') {
     if (etat.lignes.length && !confirm(`Remplacer vos ${etat.lignes.length} ligne(s) actuelles par les ${o.etat.lignes.length} de la sauvegarde ?\nUne copie de l’état actuel va d’abord être téléchargée.`)) return
     if (etat.lignes.length) exporterSauvegarde(`avant-restauration-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}.json`)
@@ -2442,10 +2482,11 @@ else { construireFormulaire(); majSuggestions(); majListePhotos(); sauver(); nou
 <script src="temps.js?v=5"></script>
 <script src="legende.js?v=1"></script>
 <script src="synthese.js?v=12"></script>
-<script src="menu-indicateurs.js?v=2"></script>
-<script src="conclusions.js?v=9"></script>
-<script src="resultats-modele.js?v=2"></script>
+<script src="menu-indicateurs.js?v=6"></script>
+<script src="multivarie.js?v=4"></script>
+<script src="conclusions.js?v=10"></script>
+<script src="resultats-modele.js?v=3"></script>
 <script src="rapport.js?v=3"></script>
-<script src="barre-haut.js?v=5"></script>
+<script src="barre-haut.js?v=6"></script>
 </body>
 </html>

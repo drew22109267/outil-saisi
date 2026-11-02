@@ -46,7 +46,7 @@
   .topbar .ind-filtre-k { display: none; }
   .topbar .ind-menu-btn { max-width: none; padding: 4px 8px; }
   .topbar .ind-menu-btn .ind-sur { color: var(--muted); font-weight: 500; }
-  .topbar .ind-menu-liste { width: min(400px, 90vw); }
+  .topbar .ind-menu-liste { width: min(400px, 90vw); max-height: calc(100vh - 84px); }
   .topbar #service { min-width: 130px; }
   .topbar .spacer { min-width: 8px; }
   @media (max-width: 1500px) { .topbar .field > span { display: none; } }

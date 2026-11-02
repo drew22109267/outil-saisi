@@ -40,7 +40,7 @@ import matplotlib.pyplot as plt
 
 import pandas as pd
 
-from traitement.imputation import valider_estimation
+from traitement.imputation import METHODES, valider_estimation
 from traitement.chargement import convention_nombre_de_jours, lire_export, lire_lits, periode_exploitable, preparer_sejours
 from traitement.doublons import reperer_reports, retirer_reports_confirmes
 from traitement.garde_fous import erlang_b, comparer_erlang, verifier_little
@@ -85,8 +85,9 @@ def main() -> None:
                    help="patients « Ancien » réécrits au report : garder (défaut, prudent) ou fusionner les reports confirmés")
     p.add_argument("--fenetre-censure", type=lambda v: v if v == "p95" else int(v), default=30,
                    help="jours avant le verrou où un séjour sans sortie est jugé encore en cours (30), ou p95")
-    p.add_argument("--inconnues", choices=["exclure", "mediane", "estimee"], default="exclure",
-                   help="durées inconnues : exclues (défaut), médiane du service, ou estimées par le prix puis l'issue")
+    p.add_argument("--inconnues", choices=list(METHODES), default="exclure",
+                   help="durées inconnues : exclues (défaut), ou estimées (médiane, moyenne, médiane par âge, prix puis "
+                        "issue, k plus proches voisins, régressions enchaînées, EM, ACP itérative) : traitement/imputation.py")
     p.add_argument("--rodage-debut", action="store_true",
                    help="saisie commencée en cours de route (fenêtre courte) : écarte les premières semaines")
     p.add_argument("--comptage", choices=list(COMPTAGES), default="minuit",

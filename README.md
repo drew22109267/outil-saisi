@@ -66,7 +66,7 @@ outil-saisi/
 ├── traitement/                   traitement des données en Python (paquet installable)
 │   ├── depuis_outil.py           CSV de l'outil → format harmonisé NERA, corrections de dates
 │   ├── chargement.py             lecture, statuts des séjours, convention des jours, période exploitable
-│   ├── imputation.py             durées inconnues : exclues ou estimées (prix, issue)
+│   ├── imputation.py             durées inconnues : neuf méthodes (médiane, prix, k-NN, régressions, EM, ACP…)
 │   ├── occupation.py             occupation jour par jour : trois méthodes, trois scénarios, pic, capacité
 │   ├── indicateurs.py            TOM, DMS, rotation, intervalle de rotation, mortalité, avec fourchette
 │   ├── garde_fous.py             loi de Little, Erlang B
@@ -290,7 +290,7 @@ CSV de l'outil (un fichier, tous les mois)
     ▼
 donnees/export_outil_PED.csv
     │  traitement/chargement.py       période verrouillée, statut de chaque sortie, convention des jours
-    │  traitement/imputation.py       durées inconnues : exclues ou estimées (prix, issue)
+    │  traitement/imputation.py       durées inconnues : neuf méthodes, validation croisée de chacune
     ▼
 séjours (entrée, sortie, sortie basse, part inclusive p, statut, issue, durée)
     │  traitement/occupation.py       présents chaque jour : minuit, journée ou pondéré ; pic de la journée
@@ -338,7 +338,7 @@ scénarios de capacité. Écrit dans `resultats/` : `occupation_<SERVICE>.csv` (
 | `--heure-entree 12 --heure-sortie 13 --duree-meme-jour 8` | heures moyennes de la méthode pondérée (entrées à toute heure, sorties de jour 8–18 h) |
 | `--lits 18` ou `--lits-fichier donnees/lits_PED.csv` | capacité fixe, ou variable (`date_debut;lits`) |
 | `--scenarios-lits 15 16 … 20` | taux pour chaque capacité : le nombre de lits réellement opérationnels varie (20 installés) |
-| `--inconnues exclure\|mediane\|estimee` | traitement des durées inconnues |
+| `--inconnues exclure\|mediane\|moyenne\|mediane_age\|estimee\|knn\|regression\|em\|acp_iterative` | traitement des durées inconnues (voir ci-dessous) |
 | `--fenetre-censure 30\|p95` | délai au-delà duquel un séjour sans sortie n'est plus « encore hospitalisé » |
 | `--rodage-debut` | rodage compté depuis le premier jour d'enregistrement |
 | `--reports retirer` | fusion des reports confirmés (seulement après confirmation par le service) |
@@ -406,7 +406,7 @@ noyau, perte, τ, hyperparamètres, validation) sont dans `module_lit/METHODE.md
 
 | Décision | Retenu | Alternatives | Pourquoi | Banc |
 |---|---|---|---|---|
-| Durées inconnues | estimée (prix, puis issue, puis médiane) | exclure, médiane | exclure sous-estime l'occupation des mois incomplets ; le prix suit la durée (tarif à la journée) | P1 |
+| Durées inconnues | estimée (prix, puis issue, puis médiane) | exclure, médiane, moyenne, médiane par âge, k plus proches voisins, régressions enchaînées, EM, ACP itérative | exclure sous-estime l'occupation des mois incomplets ; le prix suit la durée (tarif à la journée) ; les méthodes à modèle combinent prix, âge, sexe, issue et mois, et complètent un prix manquant | P1 |
 | Fenêtre de censure | p95 des durées connues | 14, 30, 60 jours | s'adapte au service au lieu d'un nombre arbitraire | P2 |
 | Convention des jours | série attendue (nuit incertaine = 1 − p) | tout inclusif, tout en nuits | espérance exacte, sans supposer une seule pratique | P3, sensibilité |
 | Patients reportés | gardés | fusionnés | la fusion n'est sûre qu'une fois confirmée par le service | P4 |
@@ -417,6 +417,29 @@ noyau, perte, τ, hyperparamètres, validation) sont dans `module_lit/METHODE.md
 | Capacité | 18 lits, scénarios de 15 à 20 | 20 lits installés, 17 lits | la pédiatrie a 20 lits depuis longtemps, mais plusieurs sont souvent non opérationnels : 18 est la capacité réellement disponible retenue, le taux est aussi donné pour 15 à 20 lits | scénarios de lits |
 | Fautes d'année ou de mois sur l'entrée | corrigées et listées, à reporter dans l'outil | ligne gardée telle quelle | une entrée en 2023 fausse tout le début de la série | contrôle du convertisseur |
 | Départ du rodage | premier jour d'enregistrement + max(14 j, p95 des durées) | début du premier mois | les enfants présents au premier jour du registre ont été admis avant : on attend qu'ils soient sortis | P5 |
+
+### Durées de séjour inconnues : neuf méthodes comparées
+
+Certaines lignes n'ont ni date de sortie ni nombre de jours. `traitement/imputation.py` propose neuf traitements,
+tous appris sur les séjours dont la durée est connue :
+
+| Méthode | Principe |
+|---|---|
+| `exclure` | le séjour n'entre pas dans l'occupation |
+| `mediane`, `moyenne` | la durée du milieu, ou la durée moyenne, du service |
+| `mediane_age` | la médiane de la tranche d'âge (< 1 an, 1–4, 5–14, 15–39, 40–64, ≥ 65 ans) |
+| `estimee` (retenue) | la médiane des séjours au même prix, sinon à la même issue, sinon du service |
+| `knn` | les 15 séjours connus les plus proches (prix, âge, sexe, issue, Ancien/Nouveau, mois) |
+| `regression` | équations enchaînées (ridge) : chaque information manquante, prix compris, puis la durée |
+| `em` | loi normale multivariée apprise par l'algorithme EM ; espérance conditionnelle de la durée |
+| `acp_iterative` | reconstruction de rang faible par l'ACP |
+
+La durée est travaillée en log(1 + nuits) par les méthodes à modèle ; chacune donne aussi un 1er et un 3e
+quartile (scénarios « basse » et « haute » de l'occupation). Deux mesures jugent chaque méthode :
+`valider_estimation` (validation croisée en 5 plis : erreur moyenne et médiane en nuits, part à ±1 nuit, biais,
+part des vraies durées dans la fourchette), écrite dans `estimation_durees_<SERVICE>.csv` ; et le banc P1 du
+module lit (effet sur la prévision des lits). Les deux s'affichent dans l'outil, rubrique « Résultats du modèle ».
+
 
 ---
 

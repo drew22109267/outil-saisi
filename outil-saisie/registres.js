@@ -202,12 +202,38 @@ window.REGISTRES = {
   }
 }
 
-// Médecine femme (registre d'hospitalisation, août 2025 → octobre 2026) : mêmes colonnes que la pédiatrie.
-// Seule l'aide de l'âge change (adultes). À compléter si une colonne diffère sur les photos.
+// Médecine femme (registre d'hospitalisation, août 2025 → octobre 2026), colonnes relevées sur les photos :
+// N° (seulement sur les derniers cahiers), Date (= jour d'entrée), Nom, Âge, Profession, Quartier, Téléphone,
+// Diagnostic d'entrée, Bilan, T3, Diagnostic de sortie (derniers cahiers), Date de sortie (premiers cahiers),
+// Nombre de jours, Montant, Observation, N° de facture. Le nom, le téléphone et le n° de facture ne sont JAMAIS saisis.
+// Une seule date : celle de l'entrée, qui sert aussi de date de référence. Service de femmes : pas de colonne Sexe.
+const colPED = (k, change = {}) => ({ ...window.REGISTRES.PED.colonnes.find((c) => c.k === k), ...change })
 window.REGISTRES.MEDF = {
-  ...window.REGISTRES.PED,
   nom: 'Médecine femme',
   lits: 17,
-  colonnes: window.REGISTRES.PED.colonnes.map((c) => (c.k === 'age'
-    ? { ...c, aide: 'Avec l’unité si elle est écrite : 35 ans. Un nombre seul est en années.' } : c)),
+  ordre: 'n_ordre',
+  maxLignesParPhoto: 25,
+  dateReference: 'date_entree',
+  montant: { depuis: 'observation', vers: 'prix' },
+  sortieCalculee: { sortie: 'date_sortie', entree: 'date_entree', jours: 'nb_jours' },
+  colonnes: [
+    colPED('n_ordre', { rare: true, aide: 'Numéro de la ligne s’il est écrit (colonne « N° » des derniers cahiers) ; sinon laissez vide.' }),
+    colPED('date_entree', { l: "Date d'entrée", aide: 'Colonne « Date » : jour de l’entrée dans le service.' }),
+    colPED('age', { aide: 'Comme écrit : 35 ans. Un nombre seul est en années.' }),
+    { k: 'profession', l: 'Profession', court: true,
+      raccourcis: ['Ménagère', 'Commerçante', 'Élève', 'Étudiante', 'Enseignante', 'Couturière', 'Coiffeuse', 'Cultivatrice', 'Sans emploi', 'Retraitée'],
+      aide: 'Comme écrite : ménagère, commerçante, élève, étudiante…' },
+    colPED('domicile', { l: 'Domicile', aide: 'Colonne « Quartier ».' }),
+    colPED('diagnostic', { raccourcis: ['APG', 'Paludisme grave', 'HTA', 'AVC', 'Diabète déséquilibré', 'Gastro-entérite', 'Pneumonie', 'Anémie sévère', 'Infection urinaire', 'Sepsis'],
+      aide: 'Diagnostic d’entrée, recopié tel quel.' }),
+    colPED('bilan'),
+    colPED('t3_recu', { raccourcis: ['SG5%', 'SS', 'Artesun inj', 'PCM inj', 'Ceftri', 'Métro inj', 'Flagyl inj', 'Oméprazole', 'Insuline', 'Spasfon inj', 'Transfusion', 'Oxygène'] }),
+    colPED('diagnostic_sortie', { rare: true, raccourcis: ['APG', 'Paludisme', 'HTA', 'AVC', 'Diabète', 'Gastro-entérite', 'Pneumonie', 'Anémie', 'Infection urinaire', 'Sepsis'],
+      aide: 'Seulement si la colonne existe (derniers cahiers).' }),
+    colPED('date_sortie', { aide: 'Seulement si elle est écrite (premiers cahiers). Sinon, laissez vide : elle est calculée avec le nombre de jours.' }),
+    colPED('nb_jours'),
+    colPED('prix', { l: 'Prix', aide: 'Colonne « Montant », en FCFA.' }),
+    colPED('observation', { aide: 'Issue : Sortie, SCAM, Référée, Décédée, Transférée en … (avec le service), évadée.' }),
+    colPED('remarque'),
+  ],
 }

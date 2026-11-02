@@ -4,6 +4,9 @@
 // de la barre (même état actif) et affiche en petit la rubrique en cours. Le menu s'ouvre au survol (court délai)
 // ou au clic, se ferme quand la souris le quitte, après le choix d'une rubrique, avec Échap ou par un clic
 // ailleurs. Il fonctionne aussi barre réduite (icônes seules).
+// Toutes les rubriques restent visibles quelle que soit la hauteur de la fenêtre (portable à 125 %, fenêtre réduite) :
+// le menu se place pour tenir dans l'écran, se resserre (disposition compacte) puis passe sur deux colonnes si la
+// place manque encore ; il ne défile qu'en dernier recours, avec une barre de défilement bien visible.
 // ═══════════════════════════════════════════════════════════════════════════════════════════
 (function () {
   const nav = document.getElementById('indNav'), parent = document.querySelector('.nav-parent')
@@ -13,6 +16,17 @@
     flex-direction: column; gap: 2px; margin: 0; padding: 8px; border: 1px solid var(--line-strong); border-left: 1px solid var(--line-strong);
     border-radius: 14px; background: var(--surface); box-shadow: 0 12px 32px rgba(15, 18, 25, .14), 0 2px 6px rgba(15, 18, 25, .06); }
   .nav-sous.nav-flyout.ouvert { display: flex !important; animation: flyoutOuvrir .14s ease-out; }
+  .nav-sous.nav-flyout > * { flex-shrink: 0; }
+  .nav-flyout-attente { padding: 8px 10px 10px; font-size: 13px; color: var(--muted); }
+  /* Disposition compacte, puis deux colonnes, quand la fenêtre est basse */
+  .nav-sous.nav-flyout.compact { gap: 0; padding: 6px; }
+  .nav-sous.nav-flyout.compact .nav-flyout-titre { padding: 4px 10px 5px; }
+  .nav-sous.nav-flyout.compact .ind-groupe { min-height: 28px; padding: 5px 10px; }
+  .nav-sous.nav-flyout.compact .ind-groupe .nom { font-size: 13px; }
+  .nav-sous.nav-flyout.deux-colonnes.ouvert { display: grid !important; grid-template-columns: 1fr 1fr; column-gap: 4px; align-content: start; width: 500px; }
+  .nav-sous.nav-flyout.deux-colonnes .nav-flyout-titre { grid-column: 1 / -1; }
+  /* Défilement en dernier recours : barre de défilement bien visible pour signaler la suite */
+  .nav-sous.nav-flyout.deborde { scrollbar-width: auto; scrollbar-color: var(--muted-2) transparent; }
   .nav-flyout-titre { padding: 6px 10px 8px; font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
   .nav-sous.nav-flyout .ind-groupe { margin-left: 0; border-left: 0; border-radius: 9px; padding: 8px 10px; min-height: 34px; }
   .nav-sous.nav-flyout .ind-groupe .nom { font-size: 13.5px; }
@@ -44,20 +58,39 @@
   const sous = document.createElement('small')
   if (nomLien) { nomLien.replaceWith(txt); txt.append(nomLien, sous) }
   parent.setAttribute('aria-haspopup', 'menu')
+  // Avant le premier calcul des indicateurs, la liste est vide : un message d'attente au lieu d'un menu vide.
+  const attente = Object.assign(document.createElement('div'), { className: 'nav-flyout-attente', textContent: 'Calcul des indicateurs en cours…' })
   const majActif = () => {
     if (nav.firstChild !== titre) nav.prepend(titre)
+    const vide = !nav.querySelector('.ind-groupe')
+    if (vide && !attente.isConnected) nav.append(attente)
+    if (!vide && attente.isConnected) attente.remove()
     sous.textContent = nav.querySelector('.ind-groupe.actif .nom')?.textContent ?? 'Synthèse'
   }
-  new MutationObserver(majActif).observe(nav, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] })
+  // Rubriques (re)dessinées pendant que le menu est ouvert — premier passage sur les Indicateurs depuis la Saisie : la
+  // liste est remplie après le calcul, quelques secondes après l'ouverture — : on replace le menu pour qu'il tienne
+  // dans l'écran. (Seulement sur un changement de contenu : placer() modifie les classes du menu lui-même.)
+  new MutationObserver((changements) => {
+    majActif()
+    if (nav.classList.contains('ouvert') && changements.some((c) => c.type === 'childList')) placer()
+  }).observe(nav, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] })
   majActif()
 
   let minuterie = null
   function placer() {
     const sb = document.getElementById('sidebar').getBoundingClientRect(), r = parent.getBoundingClientRect()
-    nav.style.left = `${Math.max(8, Math.min(sb.right + 8, innerWidth - 276))}px`
+    const place = innerHeight - 24
+    // Du plus confortable au plus serré : normal, compact, deux colonnes (compact), puis défilement.
+    nav.classList.remove('compact', 'deux-colonnes', 'deborde')
     nav.style.top = '0px'; nav.classList.add('ouvert')
-    const h = nav.offsetHeight
+    if (nav.scrollHeight > place) nav.classList.add('compact')
+    if (nav.scrollHeight > place && innerWidth >= 560) nav.classList.add('deux-colonnes')
+    if (nav.scrollHeight > place) nav.classList.add('deborde')
+    const w = nav.offsetWidth, h = nav.offsetHeight
+    nav.style.left = `${Math.max(8, Math.min(sb.right + 8, innerWidth - w - 8))}px`
     nav.style.top = `${Math.max(12, Math.min(r.top - 8, innerHeight - h - 12))}px`
+    const actif = nav.querySelector('.ind-groupe.actif')          // en cas de défilement : la rubrique en cours visible
+    if (actif && nav.scrollHeight > nav.clientHeight) nav.scrollTop = actif.offsetTop - nav.clientHeight / 2
   }
   const ouvrir = () => { clearTimeout(minuterie); placer(); parent.setAttribute('aria-expanded', 'true') }
   const fermer = () => { clearTimeout(minuterie); nav.classList.remove('ouvert'); parent.setAttribute('aria-expanded', 'false') }
