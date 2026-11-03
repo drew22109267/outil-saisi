@@ -2170,9 +2170,9 @@ function calculerIndicateurs(lits, par, methode = METHODE_DEFAUT) {
   const classes = (cle) => { const g = {}; for (const x of sejours) if (x.sortie !== null) { const k = cle(x.l); if (k !== null) (g[k] ??= []).push(x.sortie - x.entree) }
     return Object.fromEntries(Object.entries(g).filter(([, v]) => v.length >= 5).map(([k, v]) => [k, resume(v)])) }
   const prixDe = (l) => { const m = String(l.prix ?? '').replace(/[\s. ]/g, '').match(/\d{3,6}/); return m ? +m[0] : null }
-  // Classes d'issue de l'estimation : celles du format harmonisé NERA (traitement/depuis_outil.py), où une mise
-  // en observation est une sortie à domicile.
-  const issueLigne = (l) => { const i = issueDe(l); return i === 'Non renseignée' ? null : i === 'Mise en observation (MEO)' ? 'Sortie (domicile)' : i }
+  // Classes d'issue de l'estimation, les mêmes que le format harmonisé NERA (traitement/depuis_outil.py) : la mise
+  // en observation reste une classe à part (séjours courts).
+  const issueLigne = (l) => { const i = issueDe(l); return i === 'Non renseignée' ? null : i }
   const parPrix = inconnues === 'estimee' ? classes(prixDe) : {}, parIssue = inconnues === 'estimee' ? classes(issueLigne) : {}
   const global = connues.length ? resume(connues) : null, sources = { prix: 0, issue: 0, mediane: 0 }
   const estimer = (l) => { const p = prixDe(l), i = issueLigne(l)

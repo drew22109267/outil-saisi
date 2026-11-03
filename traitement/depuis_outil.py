@@ -20,7 +20,8 @@ Règles reprises de l'import NERA, ligne par ligne
   Issue          harmonisée avec le vocabulaire NERA (même logique que issueDe de l'outil) :
                  décès (observation ou remarque) → « Décès » ; SCAM → « Sortie contre avis médical » ;
                  évadé → « Évasion » ; référé, déféré, transféré → « Transfert externe » ;
-                 mise en observation (MEO) ou sortie → « Sortie » ; sinon vide.
+                 mise en observation (MEO) → « Mise en observation » (séjour court, gardé à part pour
+                 l'estimation des durées) ; sortie → « Sortie » ; sinon vide.
   Prix           premier nombre de la case (« 7500F » → 7500).
 
 Règle supplémentaire (contrôle de cohérence, absente de l'import NERA) : une date d'entrée à plus de 30 jours avant (ou 10 jours après) la
@@ -113,7 +114,9 @@ def harmoniser_issue(observation: str | None, remarque: str | None) -> str | Non
         return "Évasion"
     if re.search(r"r[ée]f[ée]r|d[ée]f[ée]r|transf[ée]r", t):
         return "Transfert externe"
-    if re.search(r"\bmeo\b|observation|sorti|ambulatoire|gratuit", t):
+    if re.search(r"\bmeo\b|observation", t):
+        return "Mise en observation"
+    if re.search(r"sorti|ambulatoire|gratuit", t):
         return "Sortie"
     return None
 

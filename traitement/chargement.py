@@ -36,7 +36,8 @@ COLONNES_NOMBRES = ["duree_jours", "age", "age_mois", "temperature", "fc", "fr",
                     "pas", "pad", "prix", "densite_parasitaire", "duree_sejour_jours"]
 
 # Issues harmonisées (vocabulaire de l'application) : chacune est un événement concurrent.
-ISSUES = ["Sortie", "Transfert interne", "Transfert externe", "Décès", "Sortie contre avis médical", "Évasion"]
+ISSUES = ["Sortie", "Mise en observation", "Transfert interne", "Transfert externe", "Décès", "Sortie contre avis médical",
+          "Évasion"]
 
 
 def lire_export(chemin: str | Path, confirmation_coffre: str | None = None) -> pd.DataFrame:

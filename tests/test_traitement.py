@@ -40,3 +40,11 @@ def test_capacite_variable():
 def test_kappa_cohen():
     assert kappa_cohen(["M", "F", "M", "F"], ["M", "F", "M", "F"]) == 1.0
     assert kappa_cohen(["M", "M", "F", "F"], ["M", "F", "M", "F"]) == pytest.approx(0.0)   # pas mieux que le hasard
+
+
+def test_issue_mise_en_observation_gardee_a_part():
+    from traitement.depuis_outil import harmoniser_issue
+    assert harmoniser_issue("MEO", None) == "Mise en observation"
+    assert harmoniser_issue("7500F Sortie", None) == "Sortie"
+    assert harmoniser_issue("MEO puis décédé", None) == "Décès"
+    assert harmoniser_issue("Référé", None) == "Transfert externe"

@@ -62,7 +62,8 @@ METHODES = ("exclure", "mediane", "moyenne", "mediane_age", "estimee", "knn", "r
 A_MODELE = ("knn", "regression", "em", "acp_iterative")
 MIN_LIGNES = 5
 TRANCHES_AGE = (0.0, 1.0, 5.0, 15.0, 40.0, 65.0, math.inf)
-ISSUES = ("Sortie", "Décès", "Sortie contre avis médical", "Transfert externe", "Transfert interne", "Évasion")
+ISSUES = ("Sortie", "Mise en observation", "Décès", "Sortie contre avis médical", "Transfert externe", "Transfert interne",
+          "Évasion")
 Z_QUARTILE = 0.6745                                  # quartiles de la loi normale centrée réduite : ±0,6745
 
 
