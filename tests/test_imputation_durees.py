@@ -28,7 +28,21 @@ def test_chaque_methode_donne_une_duree_et_une_fourchette(methode):
 
 
 def test_les_methodes_qui_lisent_le_prix_battent_la_mediane():
-    v = valider_estimation(sejours())
-    assert set(v.index) == set(METHODES[1:])
-    for m in ("estimee", "knn", "regression", "em"):
-        assert v.loc[m, "erreur_moyenne_nuits"] < v.loc["mediane", "erreur_moyenne_nuits"], m
+    s = sejours()
+    s["statut"] = np.where(s["prix"].isna(), "inconnue", "observee")      # les « vrais manquants » : prix non écrit
+    v = valider_estimation(s, tous=s, bootstrap=200, repetitions=3, min_entrainement=50)
+    assert set(v.index.get_level_values("evaluation")) == {"croisee", "temporelle", "masquage"}
+    for evaluation in ("croisee", "temporelle"):
+        t = v.loc[evaluation]
+        assert set(t.index) == set(METHODES[1:])
+        for m in ("estimee", "knn", "regression", "em"):
+            assert t.loc[m, "erreur_moyenne_nuits"] < t.loc["mediane", "erreur_moyenne_nuits"], (evaluation, m)
+        assert t.loc["mediane", "p_wilcoxon"] < 0.05                     # la médiane est significativement moins bonne
+        assert t.loc["mediane", "IC95_bas"] <= t.loc["mediane", "erreur_moyenne_nuits"] <= t.loc["mediane", "IC95_haut"]
+
+
+def test_wilcoxon_connu():
+    from traitement.imputation import _wilcoxon
+    assert _wilcoxon(np.array([1.0] * 20)) < 1e-3                         # toujours plus mauvais : significatif
+    d = np.array([1.0, -1.0] * 15)
+    assert _wilcoxon(d) > 0.9                                              # symétrique : rien

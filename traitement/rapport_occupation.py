@@ -130,7 +130,7 @@ def main() -> None:
     sejours, rapport = preparer_sejours(df, a.service, extraction, a.fenetre_censure, a.inconnues)
     if a.inconnues != "exclure":
         connus = sejours[sejours["statut"].isin(["observee", "calculee"])]
-        validation = valider_estimation(connus)
+        validation = valider_estimation(connus, tous=sejours)
         validation.to_csv(sortie / f"estimation_durees_{nom}.csv", sep=";", encoding="utf-8-sig")
         print("── Estimation des durées inconnues : validation croisée sur les séjours connus")
         print(validation.to_string())

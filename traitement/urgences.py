@@ -29,8 +29,17 @@ Règles de lecture (rien n'est inventé : une valeur illisible ou impossible dev
                 « HI » (au-dessus de la limite du lecteur) → 6,0 g/L ; « LO » → 0,2 g/L. Plausible : 0,1–8 g/L.
   Température   °C, plausible 30–44.     Pouls       plausible 20–260 /min.
   FR            plausible 5–120 /min.    SpO2        plausible 40–100 %.      Poids  plausible 0,4–250 kg.
-  Plaintes      texte libre séparé par des virgules ; reconnu par familles (voir PLAINTES) : une famille
-                est une liste FIXÉE À L'AVANCE, pas apprise sur les données (sinon fuite).
+  Plaintes      texte libre séparé par des virgules, en français OU EN ANGLAIS (le registre est bilingue :
+                « fever », « cough », « chest pain », « LOC »…) ; reconnu par familles (voir PLAINTES) : une
+                famille est une liste FIXÉE À L'AVANCE, pas apprise sur les décisions (sinon fuite). Les familles
+                ont été complétées d'après les plaintes que la première liste ne reconnaissait pas (40 % des
+                passages d'enfants, 57 % des adultes), en regardant le TEXTE seulement, jamais la décision.
+                Le texte (minuscules, sans accents) est aussi gardé (plaintes_texte) pour le sac de mots (banc T11).
+  Groupe        enfant si âge < 15 ans, adulte sinon. Âge illisible : le groupe est DÉDUIT quand c'est sûr
+                (groupe_deduit = 1) : profession « enfant », « écolier », « bébé », « NRS », ou âge écrit en
+                mois, semaines ou jours sans nombre lisible → enfant ; une profession d'adulte écrite (ménagère,
+                commerçant, retraité, étudiant…) → adulte ; « élève » (collège ou lycée : 10 à 20 ans) et une
+                profession vide restent sans groupe. Le banc T12 mesure l'apport de ces passages.
   Décision      orientation écrite par le médecin → classe :
                   Hospitalisé, Référé, Décédé                      → grave
                   Externe                                          → non grave
@@ -58,25 +67,42 @@ PLAUSIBLE = {"pouls": (20, 260), "ta_sys": (40, 260), "ta_dia": (20, 160), "glyc
 
 # Familles de plaintes : nom de la variable → expression cherchée dans le texte (minuscules, sans accents).
 PLAINTES = {
-    "fievre": r"fievre|hyperthermi|corps chaud|febri",
-    "toux": r"toux|tousse",
-    "vomissements": r"vomi",
+    "fievre": r"fievre|hyperthermi|corps chaud|febri|fever|pyrex",
+    "toux": r"toux|tousse|cough",
+    "vomissements": r"vomi|nause|nausea",
     "diarrhee": r"diarrh|selles liquides",
-    "convulsions": r"convuls|crise",
-    "douleur_abdominale": r"douleur abdo|abdominal|ventre|epigastr|colique",
-    "cephalees": r"cephal|mal de tete|maux de tete",
-    "dyspnee": r"dyspn|detresse respi|difficulte respi|essouffl|polypn|tirage|geignement",
-    "paleur": r"paleur|anemi|pale\b",
-    "conscience": r"inconscien|coma|obnubil|trouble de la conscience|alteration de la conscience|somnolen|agitation",
-    "traumatisme": r"trauma|avp|accident|chute|plaie|fracture|blessure|morsure",
-    "brulure": r"brulure",
-    "saignement": r"saign|hemorrag|hematemese|epistaxis|rectorragie|hematurie|melena",
-    "douleur_thoracique": r"douleur thorac|precordial",
-    "oedemes": r"oedem|gonfle",
-    "ictere": r"icter|jaunisse|yeux jaunes",
-    "refus_alimentation": r"refus de tet|refus de s.?alimenter|refus alimentaire|ne tete plus|anorexie",
-    "deshydratation": r"deshydrat|soif",
+    "convulsions": r"convuls|crise|seizure",
+    "douleur_abdominale": r"douleur abdo|abdominal|ventre|epigastr|colique|abdo|abd\W|dlr abd|stomach|belly|ballonn|dyspeps",
+    "cephalees": r"cephal|mal de tete|maux de tete|headache",
+    "dyspnee": r"dyspn|detresse respi|difficulte respi|essouffl|polypn|tirage|geignement|breath|\bsob\b|wheez",
+    "paleur": r"paleur|anemi|pale\b|pallor",
+    "conscience": (r"inconscien|coma|obnubil|conscience|consciousness|somnolen|agitation|\bloc\b|perte de connaiss"
+                   r"|syncope|lipothym|confus|unconscious|faint"),
+    "traumatisme": (r"trauma|avp|accident|chute|plaie|fracture|blessure|morsure|agress|aggress|\brta\b|wound|injur|assault"
+                    r"|\bfall|bite|coup de|impotence"),
+    "brulure": r"brulure|burn",
+    "saignement": (r"saign|hemorrag|hematemese|epistaxis|rectorragie|hematurie|melena|bleed|metrorrag|menorrag"
+                   r"|hemoptys|hematemesis"),
+    "douleur_thoracique": r"douleur thorac|precordial|chest pain|thoracalg",
+    "oedemes": r"oedem|gonfle|swelling|edema|tumefaction",
+    "ictere": r"icter|jaunisse|yeux jaunes|jaundice",
+    "refus_alimentation": r"refus de tet|refus de s.?alimenter|refus alimentaire|ne tete plus|anorexi|poor feeding|appetit",
+    "deshydratation": r"deshydrat|soif|dehydrat",
+    # Familles ajoutées (plaintes fréquentes que la première liste ne reconnaissait pas) :
+    "asthenie": r"asthen|fatigue|weakness|faiblesse|\baeg\b|etat general|malaise|tired",
+    "vertiges": r"vertig|dizz|etourdiss",
+    "frissons": r"frisson|chill|froid",
+    "deficit_neurologique": r"hemipleg|hemipar|paralys|paresth|aphasi|deficit|\bavc\b|stroke|deviation",
+    "metabolique": r"polyur|polydips|hyperglyc|hypoglyc|diabet",
+    "douleur_pelvienne": r"pelvi|bas.ventre|dysmenor|lower abd",
+    "douleur_osteo_articulaire": (r"lombalg|lombaire|arthralg|articul|joint|genou|knee|myalg|courbatur|cervicalg"
+                                  r"|dorsalg|back pain|body pain|douleur du (?:pied|bras|dos)|osseu"),
+    "orl": r"rhinorr|ecoulement nasal|otalg|odynophag|gorge|throat|otorr|obstruction nasale|rhume",
+    "palpitations": r"palpit",
+    "cutane": r"prurit|eruption|rash|itch|bouton|lesion cutan|urticair|demang",
 }
+MOTS_VIDES = {"de", "du", "des", "la", "le", "les", "et", "a", "au", "aux", "en", "on", "in", "of", "the", "and", "with",
+              "avec", "sans", "depuis", "since", "d", "l", "un", "une", "pour", "par", "sur", "idem", "meme"}
 
 # Intitulé du CSV (ou clé interne de l'outil), normalisé → nom de la colonne dans le tableau des passages.
 COLONNES = {
@@ -195,6 +221,11 @@ def plaintes(brut: str | None) -> dict[str, int]:
     return {f"plainte_{k}": int(bool(re.search(motif, t))) for k, motif in PLAINTES.items()}
 
 
+def mots(texte: str | None) -> set[str]:
+    """Les mots d'une plainte (minuscules, sans accents, au moins 3 lettres, hors mots vides) : le sac de mots."""
+    return {m for m in re.findall(r"[a-z]{3,}", sans_accents(texte)) if m not in MOTS_VIDES}
+
+
 def lire_csv(chemin: str | Path) -> list[dict]:
     """Lignes du CSV de l'outil, avec les seules colonnes gardées (voir COLONNES)."""
     texte = Path(chemin).read_text(encoding="utf-8-sig")
@@ -230,6 +261,8 @@ def preparer_passages(lignes: list[dict], aujourdhui: pd.Timestamp | None = None
             p[c] = lire_constante(val.get(c), c)
         p.update(plaintes(val.get("plaintes")))
         p["nombre_plaintes"] = len([x for x in re.split(r"[,;/+]| et ", val.get("plaintes") or "") if x.strip()])
+        p["plaintes_texte"] = sans_accents(val.get("plaintes"))
+        p["groupe_indice"] = _groupe_sans_age(val.get("profession"), val.get("age_texte"))
         p["decision"] = val.get("decision")
         p["classe"] = classe_decision(val.get("decision"))
         # Une valeur écrite mais non lue est comptée (contrôle de la saisie), jamais devinée.
@@ -244,6 +277,10 @@ def preparer_passages(lignes: list[dict], aujourdhui: pd.Timestamp | None = None
     if len(df):
         df = df.sort_values("date_passage", kind="stable").reset_index(drop=True)
         df["groupe"] = df.apply(lambda r: groupe(r["age"], r["nourrisson"]), axis=1)
+        deduit = df["groupe"].isna() & df["groupe_indice"].notna()
+        df["groupe_deduit"] = deduit.astype(int)
+        df.loc[deduit, "groupe"] = df.loc[deduit, "groupe_indice"]
+        df = df.drop(columns="groupe_indice")
     rapport = {"lignes_lues": len(lignes), "passages": len(df), **rejets,
                "valeurs_ecrites_mais_illisibles": illisibles}
     return df, rapport
@@ -256,6 +293,22 @@ def groupe(age: float | None, nourrisson: int = 0) -> str | None:
     if age is None or (isinstance(age, float) and math.isnan(age)):
         return None
     return "enfant" if age < AGE_ADULTE else "adulte"
+
+
+ENFANT_PROFESSION = r"\benfant|ecolier|\bbb\b|bebe|nourrisson|\bnrs\b|\bchild|\bbaby|\bpupil"
+SANS_GROUPE_PROFESSION = r"\beleve|\bnn\b|^\W*$"         # élève : collège ou lycée, de part et d'autre de 15 ans
+
+
+def _groupe_sans_age(profession: str | None, age_texte: str | None) -> str | None:
+    """Groupe déduit quand l'âge est illisible (règles de l'en-tête) ; None si ce n'est pas sûr."""
+    a, pr = sans_accents(age_texte), sans_accents(profession).strip(" ?.")
+    if re.search(r"\b(?:mois|sem|semaines?|jours?|j)\b", a):
+        return "enfant"
+    if re.search(ENFANT_PROFESSION, pr):
+        return "enfant"
+    if re.search(SANS_GROUPE_PROFESSION, pr) or len(pr) < 3:
+        return None
+    return "adulte"
 
 
 def _moment(t: str | None) -> str | None:
@@ -293,5 +346,10 @@ def decrire(passages: pd.DataFrame) -> pd.DataFrame:
         for k in ("grave", "non_grave", "intermediaire"):
             ligne[k] = int((part["classe"] == k).sum())
         ligne["sans_decision"] = int(part["classe"].isna().sum())
+        if "groupe_deduit" in part:
+            ligne["groupe_deduit"] = int(part["groupe_deduit"].sum())
+        colonnes = [c for c in part.columns if c.startswith("plainte_")]
+        if colonnes:
+            ligne["plainte_reconnue"] = round(float((part[colonnes].sum(axis=1) > 0).mean()), 3)
         lignes.append(ligne)
     return pd.DataFrame(lignes)

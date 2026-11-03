@@ -114,7 +114,10 @@ def registre_fictif(graine: int = 7) -> str:
                 nb_jours = ""                                                # sortie écrite seule
             else:
                 date_sortie, nb_jours = "", ""                               # départ écrit, durée inconnue
-            lignes.append([str(numero), f"{j:%d/%m/%y}", f"{j:%d/%m/%y}", date_sortie, nb_jours, "7500", obs])
+            # Prix lié à la durée (tarif à la journée), parfois absent : l'estimation des durées inconnues passe
+            # alors par la classe de prix, sinon par l'issue, sinon par la médiane du service.
+            prix = "" if rng.random() < 0.15 else str(2500 * (1 + min(nuits, 6)))
+            lignes.append([str(numero), f"{j:%d/%m/%y}", f"{j:%d/%m/%y}", date_sortie, nb_jours, prix, obs])
         j += timedelta(days=1)
     entete = ["N° d'ordre", "Date (enregistrement)", "Date d'entrée", "Date de sortie", "Nbre de jours", "Prix", "Observation"]
     return "\n".join(";".join(x) for x in [entete, *lignes]) + "\n"
@@ -207,6 +210,25 @@ def partie_occupation() -> None:
               f"outil {r['total']['tom']} %, Python {tom:.2f} %")
         sur = int((att["presents"] > att["lits"]).sum())
         noter("A", f"{comptage} : jours en sureffectif", r["total"]["sur"] == sur, f"{sur} jours")
+    # Durées inconnues remplacées (médiane du service ; estimée : prix, puis issue, puis médiane) : l'outil et
+    # Python doivent donner les mêmes statuts et la même occupation, jour par jour, dans les trois scénarios.
+    for inconnues in ("mediane", "estimee"):
+        js_i = outil({"tache": "occupation", "csv": texte, "lits": lits0, "capacites": capacites, "comptages": ["minuit"],
+                      "heures": [h.entree, h.sortie, h.meme_jour], "inconnues": inconnues})["minuit"]
+        if "message" in js_i:
+            noter("A", f"durées inconnues « {inconnues} » : calcul de l'outil", False, js_i["message"]); continue
+        extraction = pd.Timestamp(date(1970, 1, 1) + timedelta(days=js_i["extraction"]))
+        sejours, _ = preparer_sejours(df, "PED", extraction, inconnues=inconnues)
+        n_py = int((sejours["statut"] == "imputee").sum())
+        n_js = int(js_i["statuts"].get("imputee", 0))
+        noter("A", f"durées inconnues « {inconnues} » : séjours estimés", n_py == n_js and n_py > 0,
+              f"outil {n_js}, Python {n_py}")
+        for sc, cle in (("attendue", "presents"), ("basse", "bas"), ("haute", "haut")):
+            py = reconstituer_occupation(sejours, extraction, lits, js_i["debut"], sc, "minuit", h)["presents"].to_numpy()
+            ok, e = proche(js_i[cle], py, 1e-9)
+            noter("A", f"durées inconnues « {inconnues} » : présents ({sc}) outil = Python", ok,
+                  f"écart max {e:.1e} sur {len(py)} jours")
+
     # Ordre attendu des trois méthodes : pondérée ≤ journée et minuit ≤ journée (chaque jour).
     p = {c: np.asarray(js[c]["presents"]) for c in ("minuit", "journee", "pondere")}
     noter("A", "minuit ≤ journée et pondérée ≤ journée, chaque jour",

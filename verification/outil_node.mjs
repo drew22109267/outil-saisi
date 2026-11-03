@@ -74,7 +74,10 @@ if (entreeJson.tache === 'occupation') {
   const [he, hs, hm] = entreeJson.heures ?? [12, 11, 8]
   res = {}
   for (const comptage of entreeJson.comptages ?? ['minuit', 'journee', 'pondere']) {
-    const r = O.calculerIndicateurs(entreeJson.lits ?? 20, 'mois', { comptage, capacites: entreeJson.capacites ?? '', heureEntree: he, heureSortie: hs, dureeMemeJour: hm })
+    // Mêmes réglages que le calcul Python et la force brute (durées inconnues exclues, censure fixe de 30 jours) :
+    // la vérification porte sur le comptage des présents ; l'estimation des durées est vérifiée à part (tests).
+    const r = O.calculerIndicateurs(entreeJson.lits ?? 20, 'mois', { comptage, capacites: entreeJson.capacites ?? '', heureEntree: he, heureSortie: hs, dureeMemeJour: hm,
+      inconnues: entreeJson.inconnues ?? 'exclure', censure: entreeJson.censure ?? 'fixe' })
     if (r.message) { res[comptage] = { message: r.message }; continue }
     const total = r.lignes.at(-1)
     res[comptage] = { debut: r.debut, fin: r.fin, extraction: r.extraction, presents: r.presents, bas: r.bas, haut: r.haut,

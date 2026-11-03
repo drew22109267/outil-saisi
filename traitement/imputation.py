@@ -44,8 +44,10 @@ propage donc cette incertitude jusqu'aux conclusions du modèle. Pour la régres
 des quartiles des résidus sur les séjours connus. Les durées estimées n'entrent ni dans la DMS ni dans les
 sorties par issue (dates inventées).
 
-Validation (valider_estimation) : validation croisée en k plis sur les séjours connus ; on cache la
-durée, on la prédit avec chaque méthode, on mesure l'erreur absolue moyenne et la part à ±1 nuit. Sur la
+Validation (valider_estimation) : on cache la durée de séjours connus, on la prédit avec chaque méthode, de
+trois façons (validation croisée en k plis ; validation temporelle, apprendre sur les mois passés et tester le
+mois suivant ; masquage réaliste, cacher les séjours qui ressemblent aux vrais manquants), avec un intervalle à
+95 % par bootstrap et le test des rangs signés de Wilcoxon contre la méthode retenue. Sur la
 pédiatrie (méthodes simples) : médiane 1,46 nuit d'erreur, prix 1,13 nuit ; ±1 nuit dans 60 % des cas pour
 la médiane, 77 % pour le prix.
 """
@@ -303,36 +305,128 @@ def estimer(lignes: pd.DataFrame, tables: dict, methode: str = "estimee") -> pd.
     return pd.DataFrame(res, index=lignes.index)
 
 
-def valider_estimation(connus: pd.DataFrame, plis: int = 5, graine: int = 1, min_lignes: int = MIN_LIGNES,
-                       methodes: tuple = METHODES[1:]) -> pd.DataFrame:
+REFERENCE = "estimee"                      # la méthode retenue, contre laquelle les autres sont testées
+EVALUATIONS = ("croisee", "temporelle", "masquage")
+
+
+def _wilcoxon(d: np.ndarray) -> float:
     """
-    Validation croisée : chaque séjour connu est prédit par des tables ou un modèle construits SANS lui.
-      erreur_moyenne_nuits   moyenne de |prédit − vrai|
-      erreur_mediane_nuits   médiane de |prédit − vrai|
-      a_1_nuit_pres_%        part des séjours prédits à ±1 nuit
-      biais_nuits            moyenne de (prédit − vrai) : < 0, la méthode sous-estime les durées
-      dans_q1_q3_%           part des vraies durées entre q1 et q3 (50 % attendus si l'incertitude est juste)
-    Une ligne par méthode. À citer dans le mémoire pour justifier le choix.
+    Test des rangs signés de Wilcoxon (bilatéral, approximation normale avec correction des ex aequo) sur des
+    différences appariées d_i = |erreur de la méthode|_i − |erreur de la référence|_i, sur les MÊMES séjours.
+    W⁺ = somme des rangs de |d_i| pour d_i > 0 (les zéros sont retirés) ;
+    E[W⁺] = n(n+1)/4,  Var[W⁺] = n(n+1)(2n+1)/24 − Σ_t (t³ − t)/48  (t : taille de chaque groupe d'ex aequo).
+    """
+    d = d[d != 0]
+    n = len(d)
+    if n < 10:
+        return float("nan")
+    rangs = pd.Series(np.abs(d)).rank(method="average").to_numpy()
+    w = rangs[d > 0].sum()
+    _, t = np.unique(np.abs(d), return_counts=True)
+    var = n * (n + 1) * (2 * n + 1) / 24 - ((t ** 3 - t).sum()) / 48
+    if var <= 0:
+        return float("nan")
+    z = (abs(w - n * (n + 1) / 4) - 0.5) / math.sqrt(var)
+    return float(math.erfc(max(z, 0) / math.sqrt(2)))
+
+
+def _erreurs(entrainement: pd.DataFrame, test: pd.DataFrame, methodes, min_lignes) -> dict[str, pd.DataFrame]:
+    """Écart (prédit − vrai) et « dans la fourchette » de chaque séjour test, pour chaque méthode."""
+    tables = tables_durees(entrainement, min_lignes)
+    vrai = test["duree_nuits"].astype(float)
+    sortie = {}
+    for m in methodes:
+        e = estimer(test, tables, m)
+        sortie[m] = pd.DataFrame({"ecart": e["nuits"].astype(float) - vrai,
+                                  "dedans": (vrai >= e["nuits_q1"]) & (vrai <= e["nuits_q3"])}, index=test.index)
+    return sortie
+
+
+def _decoupages(evaluation: str, connus: pd.DataFrame, tous: pd.DataFrame | None, plis: int, graine: int,
+                repetitions: int, part_masquee: float, min_entrainement: int):
+    """Couples (apprentissage, test) de séjours CONNUS selon la façon d'évaluer."""
+    rng = np.random.default_rng(graine)
+    if evaluation == "croisee":                      # k plis au hasard
+        ordre = rng.permutation(len(connus))
+        for k in range(plis):
+            yield connus.iloc[np.setdiff1d(ordre, ordre[k::plis])], connus.iloc[ordre[k::plis]], f"pli {k + 1}"
+    elif evaluation == "temporelle":                 # apprendre sur les mois passés, tester le mois suivant
+        mois = pd.to_datetime(connus["entree"]).dt.to_period("M")
+        for m in sorted(mois.unique()):
+            avant, pendant = connus[mois < m], connus[mois == m]
+            if len(avant) >= min_entrainement and len(pendant):
+                yield avant, pendant, str(m)
+    elif evaluation == "masquage":                   # cacher des séjours connus selon le profil des vrais manquants
+        if tous is None or "statut" not in tous:
+            return
+        inconnu = tous["statut"].isin(["inconnue", "imputee"])
+        cellule = lambda s: (pd.to_datetime(s["entree"]).dt.to_period("M").astype(str) + "|"
+                             + s["prix"].notna().astype(str) + "|"
+                             + s["issue"].fillna("").astype(str).str.strip().ne("").astype(str))
+        c_tous = cellule(tous)
+        # P(durée inconnue | mois, prix écrit, issue écrite), lissée (k + ½)/(n + 1) (Jeffreys) : une cellule sans
+        # aucun manquant garde une petite probabilité au lieu de zéro.
+        g = inconnu.groupby(c_tous)
+        p_cellule = (g.sum() + 0.5) / (g.size() + 1)
+        poids = cellule(connus).map(p_cellule).fillna(0).to_numpy(float)
+        if poids.sum() <= 0:
+            return
+        n_test = min(max(1, int(part_masquee * len(connus))), int((poids > 0).sum()))
+        for r in range(repetitions):
+            idx = rng.choice(len(connus), size=n_test, replace=False, p=poids / poids.sum())
+            garde = np.setdiff1d(np.arange(len(connus)), idx)
+            yield connus.iloc[garde], connus.iloc[idx], f"tirage {r + 1}"
+
+
+def valider_estimation(connus: pd.DataFrame, plis: int = 5, graine: int = 1, min_lignes: int = MIN_LIGNES,
+                       methodes: tuple = METHODES[1:], tous: pd.DataFrame | None = None,
+                       evaluations: tuple = EVALUATIONS, repetitions: int = 10, part_masquee: float = 0.2,
+                       bootstrap: int = 1000, min_entrainement: int = 100) -> pd.DataFrame:
+    """
+    Chaque méthode prédit des durées CONNUES qu'on lui cache ; trois façons de choisir les durées cachées :
+      croisee    validation croisée en `plis` plis, séjours tirés au hasard ;
+      temporelle apprendre sur les mois passés, tester le mois suivant, comme dans la réalité (rien du futur) ;
+      masquage   masquage RÉALISTE : on cache des séjours connus avec une probabilité proportionnelle à
+                 P(durée inconnue | mois d'entrée, prix écrit, issue écrite), estimée sur TOUS les séjours
+                 (`tous`, avec la colonne statut) : les séjours cachés ressemblent aux vrais manquants
+                 (`repetitions` tirages de `part_masquee` des séjours connus).
+    Mesures, par évaluation et par méthode, sur les mêmes séjours pour toutes les méthodes :
+      erreur_moyenne_nuits  et son intervalle à 95 % (bootstrap des séjours, `bootstrap` tirages)
+      ecart_vs_reference    erreur moyenne − celle de la méthode retenue (« estimee »), intervalle bootstrap apparié
+      p_wilcoxon            test des rangs signés de Wilcoxon sur |erreur| contre la méthode retenue
+      erreur_mediane_nuits, a_1_nuit_pres_%, biais_nuits (< 0 : durées sous-estimées), dans_q1_q3_% (50 % attendus)
+    À citer dans le mémoire pour justifier le choix.
     """
     connus = connus[connus["duree_nuits"].notna()]
-    ordre = np.random.default_rng(graine).permutation(len(connus))
-    res = {m: [] for m in methodes}
-    for k in range(plis):
-        test = connus.iloc[ordre[k::plis]]
-        entrainement = connus.iloc[np.setdiff1d(ordre, ordre[k::plis])]
-        tables = tables_durees(entrainement, min_lignes)
-        vrai = test["duree_nuits"].astype(float)
-        for m in res:
-            e = estimer(test, tables, m)
-            res[m].append(pd.DataFrame({"ecart": e["nuits"].astype(float) - vrai,
-                                        "dedans": (vrai >= e["nuits_q1"]) & (vrai <= e["nuits_q3"])}))
+    rng = np.random.default_rng(graine + 7)
     lignes = []
-    for m, e in res.items():
-        e = pd.concat(e)
-        a = e["ecart"].abs()
-        lignes.append({"methode": m, "sejours": len(e), "erreur_moyenne_nuits": round(float(a.mean()), 2),
-                       "erreur_mediane_nuits": round(float(a.median()), 2),
-                       "a_1_nuit_pres_%": round(100 * float((a <= 1).mean()), 1),
-                       "biais_nuits": round(float(e["ecart"].mean()), 2),
-                       "dans_q1_q3_%": round(100 * float(e["dedans"].mean()), 1)})
-    return pd.DataFrame(lignes).set_index("methode")
+    for evaluation in evaluations:
+        res = {m: [] for m in methodes}
+        for entr, test, _ in _decoupages(evaluation, connus, tous, plis, graine, repetitions, part_masquee, min_entrainement):
+            for m, e in _erreurs(entr, test, methodes, min_lignes).items():
+                res[m].append(e)
+        if not any(res.values()):
+            continue
+        err = {m: pd.concat(v, ignore_index=True) for m, v in res.items() if v}
+        n = len(next(iter(err.values())))
+        tirages = rng.integers(0, n, size=(bootstrap, n))
+        ref = err.get(REFERENCE)
+        for m, e in err.items():
+            a = e["ecart"].abs().to_numpy()
+            boot = a[tirages].mean(axis=1)
+            l = {"evaluation": evaluation, "methode": m, "sejours": n,
+                 "erreur_moyenne_nuits": round(float(a.mean()), 3),
+                 "IC95_bas": round(float(np.quantile(boot, 0.025)), 3), "IC95_haut": round(float(np.quantile(boot, 0.975)), 3)}
+            if ref is not None and m != REFERENCE:
+                d = a - ref["ecart"].abs().to_numpy()
+                bd = d[tirages].mean(axis=1)
+                l.update({"ecart_vs_reference": round(float(d.mean()), 3),
+                          "ecart_IC95_bas": round(float(np.quantile(bd, 0.025)), 3),
+                          "ecart_IC95_haut": round(float(np.quantile(bd, 0.975)), 3),
+                          "p_wilcoxon": round(_wilcoxon(d), 4)})
+            l.update({"erreur_mediane_nuits": round(float(np.median(a)), 2),
+                      "a_1_nuit_pres_%": round(100 * float((a <= 1).mean()), 1),
+                      "biais_nuits": round(float(e["ecart"].mean()), 2),
+                      "dans_q1_q3_%": round(100 * float(e["dedans"].mean()), 1)})
+            lignes.append(l)
+    return pd.DataFrame(lignes).set_index(["evaluation", "methode"])

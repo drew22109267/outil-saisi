@@ -3,42 +3,50 @@
 Produit par `verification/verifier_calculs.py` sur des **données fictives** (registre inventé, séries simulées).
 Les bibliothèques de référence ne servent qu'à juger : aucun calcul de l'outil ni des modèles ne les utilise.
 
-**118 calculs justes sur 118**.
+**126 calculs justes sur 126**.
 
 ## A. Occupation : outil (JavaScript) = Python = force brute
 
 | Calcul | Verdict | Détail |
 |---|---|---|
-| minuit : même période (2025-01-15 → 2025-09-30) | juste |  |
-| minuit : présents (attendue) outil = Python = force brute | juste | écart max 6.9e-12 sur 259 jours |
-| minuit : présents (basse) outil = Python = force brute | juste | écart max 0.0e+00 sur 259 jours |
-| minuit : présents (haute) outil = Python = force brute | juste | écart max 0.0e+00 sur 259 jours |
+| minuit : même période (2025-06-15 → 2025-09-30) | juste |  |
+| minuit : présents (attendue) outil = Python = force brute | juste | écart max 6.9e-12 sur 108 jours |
+| minuit : présents (basse) outil = Python = force brute | juste | écart max 0.0e+00 sur 108 jours |
+| minuit : présents (haute) outil = Python = force brute | juste | écart max 0.0e+00 sur 108 jours |
 | minuit : bornes du pic de la journée | juste |  |
 | minuit : pic bas ≤ pic haut chaque jour | juste |  |
 | minuit : admissions du jour | juste |  |
 | minuit : capacité de chaque jour (15 puis 20 lits au 01/05/25) | juste |  |
-| minuit : taux d'occupation = Σ présents ÷ Σ lits | juste | outil 52.7 %, Python 52.74 % |
-| minuit : jours en sureffectif | juste | 4 jours |
-| journee : même période (2025-01-15 → 2025-09-30) | juste |  |
-| journee : présents (attendue) outil = Python = force brute | juste | écart max 5.3e-12 sur 259 jours |
-| journee : présents (basse) outil = Python = force brute | juste | écart max 0.0e+00 sur 259 jours |
-| journee : présents (haute) outil = Python = force brute | juste | écart max 0.0e+00 sur 259 jours |
+| minuit : taux d'occupation = Σ présents ÷ Σ lits | juste | outil 47.2 %, Python 47.21 % |
+| minuit : jours en sureffectif | juste | 1 jours |
+| journee : même période (2025-06-15 → 2025-09-30) | juste |  |
+| journee : présents (attendue) outil = Python = force brute | juste | écart max 5.3e-12 sur 108 jours |
+| journee : présents (basse) outil = Python = force brute | juste | écart max 0.0e+00 sur 108 jours |
+| journee : présents (haute) outil = Python = force brute | juste | écart max 0.0e+00 sur 108 jours |
 | journee : bornes du pic de la journée | juste |  |
 | journee : pic bas ≤ pic haut chaque jour | juste |  |
 | journee : admissions du jour | juste |  |
 | journee : capacité de chaque jour (15 puis 20 lits au 01/05/25) | juste |  |
-| journee : taux d'occupation = Σ présents ÷ Σ lits | juste | outil 70.1 %, Python 70.11 % |
-| journee : jours en sureffectif | juste | 16 jours |
-| pondere : même période (2025-01-15 → 2025-09-30) | juste |  |
-| pondere : présents (attendue) outil = Python = force brute | juste | écart max 2.0e-11 sur 259 jours |
-| pondere : présents (basse) outil = Python = force brute | juste | écart max 0.0e+00 sur 259 jours |
-| pondere : présents (haute) outil = Python = force brute | juste | écart max 0.0e+00 sur 259 jours |
+| journee : taux d'occupation = Σ présents ÷ Σ lits | juste | outil 63.2 %, Python 63.23 % |
+| journee : jours en sureffectif | juste | 3 jours |
+| pondere : même période (2025-06-15 → 2025-09-30) | juste |  |
+| pondere : présents (attendue) outil = Python = force brute | juste | écart max 1.3e-11 sur 108 jours |
+| pondere : présents (basse) outil = Python = force brute | juste | écart max 0.0e+00 sur 108 jours |
+| pondere : présents (haute) outil = Python = force brute | juste | écart max 0.0e+00 sur 108 jours |
 | pondere : bornes du pic de la journée | juste |  |
 | pondere : pic bas ≤ pic haut chaque jour | juste |  |
 | pondere : admissions du jour | juste |  |
 | pondere : capacité de chaque jour (15 puis 20 lits au 01/05/25) | juste |  |
-| pondere : taux d'occupation = Σ présents ÷ Σ lits | juste | outil 56.9 %, Python 56.92 % |
-| pondere : jours en sureffectif | juste | 4 jours |
+| pondere : taux d'occupation = Σ présents ÷ Σ lits | juste | outil 51 %, Python 50.95 % |
+| pondere : jours en sureffectif | juste | 1 jours |
+| durées inconnues « mediane » : séjours estimés | juste | outil 65, Python 65 |
+| durées inconnues « mediane » : présents (attendue) outil = Python | juste | écart max 0.0e+00 sur 259 jours |
+| durées inconnues « mediane » : présents (basse) outil = Python | juste | écart max 0.0e+00 sur 259 jours |
+| durées inconnues « mediane » : présents (haute) outil = Python | juste | écart max 0.0e+00 sur 259 jours |
+| durées inconnues « estimee » : séjours estimés | juste | outil 65, Python 65 |
+| durées inconnues « estimee » : présents (attendue) outil = Python | juste | écart max 0.0e+00 sur 259 jours |
+| durées inconnues « estimee » : présents (basse) outil = Python | juste | écart max 0.0e+00 sur 259 jours |
+| durées inconnues « estimee » : présents (haute) outil = Python | juste | écart max 0.0e+00 sur 259 jours |
 | minuit ≤ journée et pondérée ≤ journée, chaque jour | juste |  |
 
 ## B. Bibliothèque statistique de l'outil contre scipy, statsmodels, numpy

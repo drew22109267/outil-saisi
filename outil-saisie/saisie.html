@@ -2163,11 +2163,16 @@ function calculerIndicateurs(lits, par, methode = METHODE_DEFAUT) {
   const fenetreCensure = censure === 'p95' ? Math.max(7, p95) : (CONFIG.fenetreCensure ?? 30)
   // Estimation des durées inconnues (même méthode que nera/imputation.py) : médiane, 1er et 3e quartile
   // des séjours connus de même prix (au moins 5), sinon de même issue, sinon de tout le service.
-  const resume = (v) => { const t = v.slice().sort((a, b) => a - b); return { med: Math.round(quantileDe(t, 0.5)), q1: Math.floor(quantileDe(t, 0.25)), q3: Math.ceil(quantileDe(t, 0.75)) } }
+  // Arrondi « au pair » de la médiane (2,5 → 2 ; 3,5 → 4), comme round() en Python : une médiane tombant sur une
+  // demi-nuit n'est pas toujours arrondie vers le haut, ce qui allongerait en moyenne les durées estimées.
+  const arrondiPair = (x) => { const f = Math.floor(x), d = x - f; return d > 0.5 ? f + 1 : d < 0.5 ? f : (f % 2 === 0 ? f : f + 1) }
+  const resume = (v) => { const t = v.slice().sort((a, b) => a - b); return { med: arrondiPair(quantileDe(t, 0.5)), q1: Math.floor(quantileDe(t, 0.25)), q3: Math.ceil(quantileDe(t, 0.75)) } }
   const classes = (cle) => { const g = {}; for (const x of sejours) if (x.sortie !== null) { const k = cle(x.l); if (k !== null) (g[k] ??= []).push(x.sortie - x.entree) }
     return Object.fromEntries(Object.entries(g).filter(([, v]) => v.length >= 5).map(([k, v]) => [k, resume(v)])) }
   const prixDe = (l) => { const m = String(l.prix ?? '').replace(/[\s. ]/g, '').match(/\d{3,6}/); return m ? +m[0] : null }
-  const issueLigne = (l) => { const i = issueDe(l); return i === 'Non renseignée' ? null : i }
+  // Classes d'issue de l'estimation : celles du format harmonisé NERA (traitement/depuis_outil.py), où une mise
+  // en observation est une sortie à domicile.
+  const issueLigne = (l) => { const i = issueDe(l); return i === 'Non renseignée' ? null : i === 'Mise en observation (MEO)' ? 'Sortie (domicile)' : i }
   const parPrix = inconnues === 'estimee' ? classes(prixDe) : {}, parIssue = inconnues === 'estimee' ? classes(issueLigne) : {}
   const global = connues.length ? resume(connues) : null, sources = { prix: 0, issue: 0, mediane: 0 }
   const estimer = (l) => { const p = prixDe(l), i = issueLigne(l)
@@ -2485,7 +2490,7 @@ else { construireFormulaire(); majSuggestions(); majListePhotos(); sauver(); nou
 <script src="menu-indicateurs.js?v=6"></script>
 <script src="multivarie.js?v=4"></script>
 <script src="conclusions.js?v=10"></script>
-<script src="resultats-modele.js?v=3"></script>
+<script src="resultats-modele.js?v=4"></script>
 <script src="rapport.js?v=3"></script>
 <script src="barre-haut.js?v=6"></script>
 </body>
