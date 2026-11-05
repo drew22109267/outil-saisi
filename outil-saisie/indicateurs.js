@@ -1400,6 +1400,8 @@ function installer3D(racine) {
       bloc.querySelectorAll('[data-vue3d-g]').forEach((x) => x.classList.toggle('eteint', etatV.focus !== null && +x.dataset.vue3dG !== etatV.focus)); dessiner()
     }))
     requestAnimationFrame(dessiner)
+    // Redessin à la demande, quand les données de la vue changent (film de l'apprentissage, apprentissage.js).
+    bloc.addEventListener('vue3d-redessiner', () => dessiner())
   })
 }
 function rendreAcpVariables(c) {
