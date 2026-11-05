@@ -40,7 +40,7 @@ import matplotlib.pyplot as plt
 
 import pandas as pd
 
-from traitement.imputation import METHODES, valider_estimation
+from traitement.imputation import METHODES, ModeleDuree, valider_estimation
 from traitement.chargement import convention_nombre_de_jours, lire_export, lire_lits, periode_exploitable, preparer_sejours
 from traitement.doublons import reperer_reports, retirer_reports_confirmes
 from traitement.garde_fous import erlang_b, comparer_erlang, verifier_little
@@ -134,6 +134,12 @@ def main() -> None:
         validation.to_csv(sortie / f"estimation_durees_{nom}.csv", sep=";", encoding="utf-8-sig")
         print("── Estimation des durées inconnues : validation croisée sur les séjours connus")
         print(validation.to_string())
+        knn = ModeleDuree("knn").ajuster(connus)
+        if knn.erreurs_k:
+            pd.Series(knn.erreurs_k, name="erreur_moyenne_nuits").rename_axis("k").to_csv(
+                sortie / f"choix_k_knn_{nom}.csv", sep=";", encoding="utf-8-sig")
+            print("  kNN, erreur moyenne (nuits) par k, validation croisée en 5 plis sur tous les séjours connus : "
+                  + ", ".join(f"k={k} {e:.3f}" for k, e in knn.erreurs_k.items()) + f"  → k retenu = {knn.k}")
         print("  sources : " + ", ".join(f"{k} {v}" for k, v in sejours["nuits_source"].value_counts().items()))
     print("\n── Séjours\n" + str(rapport))
 

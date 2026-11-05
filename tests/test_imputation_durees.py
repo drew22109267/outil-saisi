@@ -34,11 +34,20 @@ def test_les_methodes_qui_lisent_le_prix_battent_la_mediane():
     assert set(v.index.get_level_values("evaluation")) == {"croisee", "temporelle", "masquage"}
     for evaluation in ("croisee", "temporelle"):
         t = v.loc[evaluation]
-        assert set(t.index) == set(METHODES[1:])
+        assert set(METHODES[1:]) <= set(t.index)
+        assert {"knn k=1", "knn k=15", "knn k=51"} <= set(t.index)            # balayage de k
+        assert {"knn (mise à l'échelle robuste)", "regression (sans logarithme)", "em (sans logarithme)"} <= set(t.index)
         for m in ("estimee", "knn", "regression", "em"):
             assert t.loc[m, "erreur_moyenne_nuits"] < t.loc["mediane", "erreur_moyenne_nuits"], (evaluation, m)
         assert t.loc["mediane", "p_wilcoxon"] < 0.05                     # la médiane est significativement moins bonne
         assert t.loc["mediane", "IC95_bas"] <= t.loc["mediane", "erreur_moyenne_nuits"] <= t.loc["mediane", "IC95_haut"]
+
+
+def test_k_choisi_par_validation_croisee():
+    from traitement.imputation import K_GRILLE, ModeleDuree
+    m = ModeleDuree("knn").ajuster(sejours())
+    assert m.k in K_GRILLE and m.erreurs_k[m.k] == min(m.erreurs_k.values())
+    assert m.k > 1                                                         # un seul voisin : trop instable
 
 
 def test_wilcoxon_connu():
@@ -46,3 +55,12 @@ def test_wilcoxon_connu():
     assert _wilcoxon(np.array([1.0] * 20)) < 1e-3                         # toujours plus mauvais : significatif
     d = np.array([1.0, -1.0] * 15)
     assert _wilcoxon(d) > 0.9                                              # symétrique : rien
+
+
+@pytest.mark.parametrize("options", [dict(echelle="robuste"), dict(log=False)])
+def test_variantes_de_pretraitement(options):
+    from traitement.imputation import ModeleDuree
+    s = sejours()
+    for m in ("knn", "regression", "em", "acp_iterative"):
+        e = ModeleDuree(m, **options).ajuster(s.iloc[:300]).predire(s.iloc[300:])
+        assert len(e) == 100 and (e["nuits"] >= 0).all() and (e["nuits_q1"] <= e["nuits"]).all()

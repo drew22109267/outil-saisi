@@ -19,10 +19,13 @@ Méthodes (paramètre `inconnues` de traitement.chargement.preparer_sejours ; ba
   'mediane_age'    médiane de la tranche d'âge (< 1 an, 1–4, 5–14, 15–39, 40–64, ≥ 65 ans) ;
   'estimee'        médiane des séjours connus AYANT LE MÊME PRIX (au moins `min_lignes` séjours) ;
                    à défaut, même issue ; à défaut, médiane du service (méthode retenue jusqu'ici) ;
-  'knn'            les k = 15 séjours connus les plus proches (prix, âge, sexe, issue, Ancien/Nouveau, mois),
+  'knn'            les k séjours connus les plus proches (prix, âge, sexe, issue, Ancien/Nouveau, mois),
                    distance euclidienne sur les seules variables écrites des deux côtés, remise à l'échelle :
                        d²(a, b) = (p / |o_a ∩ o_b|) Σ_{j ∈ o_a ∩ o_b} (z_aj − z_bj)² ;
                    durée = médiane des voisins, q1 et q3 = quartiles des voisins ;
+                   k n'est pas fixé : il est choisi par validation croisée en 5 plis sur les séjours connus
+                   (ceux de l'apprentissage seulement), sur la grille K_GRILLE :
+                       k* = argmin_k (1/n) Σ_i |d_i − d̂_i^(k)|   (ex aequo : le plus petit k) ;
   'regression'     équations enchaînées (principe de MICE) : chaque variable incomplète, la durée comprise,
                    est prédite par une régression ridge sur toutes les autres, 10 tours :
                        β_j = (AᵀA + λI)⁻¹ Aᵀ z_j,  z_ij ← a_iᵀ β_j   (λ = 1) ;
@@ -35,7 +38,10 @@ Méthodes (paramètre `inconnues` de traitement.chargement.preparer_sejours ; ba
   'acp_iterative'  imputation de rang faible : ACP des séjours (80 % de la variance), cases vides remplacées par
                    la reconstruction U_k S_k V_kᵀ jusqu'à stabilité ; pour un séjour inconnu, coordonnées
                    s = (V_oᵀV_o + αI)⁻¹ V_oᵀ z_o sur ses variables écrites, durée = V_m s.
-La durée est modélisée en log(1 + nuits) pour les méthodes à modèle (les durées sont très asymétriques).
+La durée est modélisée en log(1 + nuits) et le prix en log(prix) pour les méthodes à modèle (les durées sont
+très asymétriques), puis chaque variable est centrée-réduite (z-score). Ces deux choix sont comparés par
+valider_estimation : mise à l'échelle robuste, z = (x − médiane)/(Q3 − Q1), pour le kNN, et chaque méthode à
+modèle sans logarithme (durée en nuits, prix en francs).
 Rien n'est codé en dur : tout est appris sur les séjours CONNUS du service (et seulement eux).
 
 Incertitude : pour chaque séjour estimé on garde aussi un 1er et un 3e quartile. traitement.occupation les
@@ -65,6 +71,8 @@ TRANCHES_AGE = (0.0, 1.0, 5.0, 15.0, 40.0, 65.0, math.inf)
 ISSUES = ("Sortie", "Mise en observation", "Décès", "Sortie contre avis médical", "Transfert externe", "Transfert interne",
           "Évasion")
 Z_QUARTILE = 0.6745                                  # quartiles de la loi normale centrée réduite : ±0,6745
+K_GRILLE = (1, 3, 5, 7, 9, 11, 15, 21, 31, 51)       # valeurs de k essayées par la validation croisée du kNN
+PLIS_K = 5
 
 
 def _resume(d: pd.Series) -> tuple[float, float, float]:
@@ -94,6 +102,28 @@ def variables(lignes: pd.DataFrame) -> np.ndarray:
     return np.column_stack(cols) if n else np.empty((0, len(cols)))
 
 
+def _distances(F: np.ndarray, G: np.ndarray) -> np.ndarray:
+    """d²(a, b) entre chaque ligne de F et chaque ligne de G, sur les variables écrites des deux côtés, × p/|C|."""
+    Ma, Mb = (~np.isnan(F)).astype(float), (~np.isnan(G)).astype(float)
+    fa, fb = np.nan_to_num(F), np.nan_to_num(G)
+    communes = Ma @ Mb.T
+    d2 = (Ma * fa ** 2) @ Mb.T + Ma @ (Mb * fb ** 2).T - 2 * (Ma * fa) @ (Mb * fb).T
+    return np.where(communes > 0, d2.clip(min=0) * F.shape[1] / np.maximum(communes, 1), np.inf)
+
+
+def _voisins(d2: np.ndarray, durees: np.ndarray, grille) -> dict[int, tuple]:
+    """Pour chaque k de la grille : médiane, q1 et q3 des durées des k plus proches (une ligne de d2 par séjour)."""
+    tri = durees[np.argsort(d2, axis=1, kind="stable")]
+    return {k: (np.median(tri[:, :k], axis=1), np.quantile(tri[:, :k], 0.25, axis=1), np.quantile(tri[:, :k], 0.75, axis=1))
+            for k in grille if k <= tri.shape[1]}
+
+
+def _en_nuits(med, q1, q3, source: str, index) -> pd.DataFrame:
+    nuits = np.round(med)
+    return pd.DataFrame({"nuits": nuits.astype(int), "nuits_q1": np.minimum(np.floor(q1), nuits).astype(int),
+                         "nuits_q3": np.maximum(np.ceil(q3), nuits).astype(int), "source": source}, index=index)
+
+
 def _motifs(M: np.ndarray):
     motifs, inverse = np.unique(M, axis=0, return_inverse=True)
     inverse = inverse.ravel()
@@ -104,14 +134,27 @@ def _motifs(M: np.ndarray):
 class ModeleDuree:
     """Méthodes à modèle : apprises sur les séjours connus, appliquées aux séjours sans durée."""
 
-    def __init__(self, methode: str, k: int = 15):
-        self.methode, self.k = methode, k
+    def __init__(self, methode: str, k: int | None = None, echelle: str = "zscore", log: bool = True):
+        """echelle : 'zscore' (moyenne, écart-type) ou 'robuste' (médiane, Q3 − Q1) ; log : durée et prix en log."""
+        self.methode, self.k = methode, k                # k = None : choisi par validation croisée (kNN)
+        self.echelle_type, self.log = echelle, log
+        self.erreurs_k = None
+
+    def _tableau(self, duree: np.ndarray, lignes: pd.DataFrame) -> np.ndarray:
+        J = np.column_stack([np.log1p(duree), variables(lignes)])
+        if not self.log:                                 # durée en nuits, prix en francs (colonne 1 : log prix)
+            J[:, 0], J[:, 1] = duree, np.exp(J[:, 1])
+        return J
 
     def ajuster(self, connus: pd.DataFrame) -> "ModeleDuree":
-        J = np.column_stack([np.log1p(connus["duree_nuits"].astype(float).to_numpy()), variables(connus)])
+        J = self._tableau(connus["duree_nuits"].astype(float).to_numpy(), connus)
         self.garder = [j for j in range(J.shape[1]) if (~np.isnan(J[:, j])).sum() >= 2 and np.nanstd(J[:, j]) > 1e-12]
         J = J[:, self.garder]
-        self.centre, self.echelle = np.nanmean(J, axis=0), np.nanstd(J, axis=0)
+        if self.echelle_type == "robuste":
+            q1, med, q3 = np.nanquantile(J, [0.25, 0.5, 0.75], axis=0)
+            self.centre, self.echelle = med, np.where(q3 - q1 > 1e-12, q3 - q1, 1.0)   # indicatrice rare : Q3 − Q1 = 0
+        else:
+            self.centre, self.echelle = np.nanmean(J, axis=0), np.nanstd(J, axis=0)
         Z = (J - self.centre) / self.echelle
         self.Z = Z
         getattr(self, f"_ajuster_{self.methode}")(Z)
@@ -122,11 +165,12 @@ class ModeleDuree:
         return self
 
     def _vers_z(self, lignes: pd.DataFrame) -> np.ndarray:
-        J = np.column_stack([np.full(len(lignes), np.nan), variables(lignes)])[:, self.garder]
+        J = self._tableau(np.full(len(lignes), np.nan), lignes)[:, self.garder]
         return (J - self.centre) / self.echelle
 
     def _nuits(self, z: np.ndarray) -> np.ndarray:
-        return np.expm1(z * self.echelle[0] + self.centre[0]).clip(min=0)
+        x = z * self.echelle[0] + self.centre[0]
+        return (np.expm1(x) if self.log else x).clip(min=0)
 
     def predire(self, lignes: pd.DataFrame) -> pd.DataFrame:
         Z = self._vers_z(lignes)
@@ -142,25 +186,44 @@ class ModeleDuree:
                 r1, r3 = np.quantile(self.residus, [0.25, 0.75])
                 q1z, q3z = z + r1, z + r3
             med, q1, q3 = self._nuits(z), self._nuits(q1z), self._nuits(q3z)
-        nuits = np.round(med)
-        return pd.DataFrame({"nuits": nuits.astype(int), "nuits_q1": np.minimum(np.floor(q1), nuits).astype(int),
-                             "nuits_q3": np.maximum(np.ceil(q3), nuits).astype(int), "source": self.methode}, index=lignes.index)
+        return _en_nuits(med, q1, q3, self.methode, lignes.index)
 
     # ── k plus proches voisins ──
     def _ajuster_knn(self, Z):
-        pass
+        if self.k is None:
+            self.k, self.erreurs_k = self._choisir_k(Z)
 
-    def _knn(self, Z):
-        F, G = Z[:, 1:], self.Z[:, 1:]
-        Ma, Mb = (~np.isnan(F)).astype(float), (~np.isnan(G)).astype(float)
-        fa, fb = np.nan_to_num(F), np.nan_to_num(G)
-        communes = Ma @ Mb.T
-        d2 = (Ma * fa ** 2) @ Mb.T + Ma @ (Mb * fb ** 2).T - 2 * (Ma * fa) @ (Mb * fb).T
-        d2 = np.where(communes > 0, d2.clip(min=0) * F.shape[1] / np.maximum(communes, 1), np.inf)
-        k = min(self.k, len(G))
-        proches = np.argpartition(d2, k - 1, axis=1)[:, :k]
-        durees = self._nuits(self.Z[:, 0])[proches]
-        return np.median(durees, axis=1), np.quantile(durees, 0.25, axis=1), np.quantile(durees, 0.75, axis=1)
+    def _choisir_k(self, Z, plis: int = PLIS_K, graine: int = 1):
+        """
+        Validation croisée en `plis` plis sur les séjours connus : chaque pli est caché à son tour, ses durées sont
+        estimées avec les k plus proches parmi les autres plis, pour chaque k de K_GRILLE ; erreur(k) = moyenne de
+        |nuits estimées − vraies nuits|. Renvoie le k de plus petite erreur (ex aequo : le plus petit) et les erreurs.
+        Moins de 2 × plis séjours connus : pas assez pour cinq plis, k = √n.
+        """
+        n = len(Z)
+        grille = [k for k in K_GRILLE if k <= n - -(-n // plis)]     # au plus la taille du plus petit apprentissage
+        if n < 2 * plis or not grille:
+            return max(1, round(math.sqrt(n))), None
+        nuits = self._nuits(Z[:, 0])
+        ordre = np.random.default_rng(graine).permutation(n)
+        ecarts = {k: [] for k in grille}
+        for p in range(plis):
+            test = ordre[p::plis]
+            entr = np.setdiff1d(ordre, test)
+            for k, (med, _, _) in _voisins(_distances(Z[test, 1:], Z[entr, 1:]), nuits[entr], grille).items():
+                ecarts[k].append(np.abs(np.round(med) - np.round(nuits[test])))
+        erreurs = {k: float(np.concatenate(v).mean()) for k, v in ecarts.items()}
+        return min(erreurs, key=lambda k: (erreurs[k], k)), erreurs
+
+    def _knn(self, Z, grille=None):
+        r = _voisins(_distances(Z[:, 1:], self.Z[:, 1:]), self._nuits(self.Z[:, 0]),
+                     grille or [min(self.k, len(self.Z))])
+        return r if grille else next(iter(r.values()))
+
+    def predire_grille(self, lignes: pd.DataFrame, grille=K_GRILLE) -> dict[int, pd.DataFrame]:
+        """Estimations kNN pour chaque k de la grille (balayage de k dans valider_estimation)."""
+        return {k: _en_nuits(med, q1, q3, f"knn k={k}", lignes.index)
+                for k, (med, q1, q3) in self._knn(self._vers_z(lignes), list(grille)).items()}
 
     # ── régressions enchaînées ──
     def _ajuster_regression(self, Z, tours: int = 10, lam: float = 1.0):
@@ -307,6 +370,9 @@ def estimer(lignes: pd.DataFrame, tables: dict, methode: str = "estimee") -> pd.
 
 
 REFERENCE = "estimee"                      # la méthode retenue, contre laquelle les autres sont testées
+# Variantes de prétraitement des méthodes à modèle, comparées dans valider_estimation (nom : méthode, options).
+PRETRAITEMENTS = {"knn (mise à l'échelle robuste)": ("knn", dict(echelle="robuste")),
+                  **{f"{m} (sans logarithme)": (m, dict(log=False)) for m in A_MODELE}}
 EVALUATIONS = ("croisee", "temporelle", "masquage")
 
 
@@ -331,16 +397,26 @@ def _wilcoxon(d: np.ndarray) -> float:
     return float(math.erfc(max(z, 0) / math.sqrt(2)))
 
 
-def _erreurs(entrainement: pd.DataFrame, test: pd.DataFrame, methodes, min_lignes) -> dict[str, pd.DataFrame]:
-    """Écart (prédit − vrai) et « dans la fourchette » de chaque séjour test, pour chaque méthode."""
+def _erreurs(entrainement: pd.DataFrame, test: pd.DataFrame, methodes, min_lignes, grille_k=(),
+             pretraitements: dict | None = None) -> dict[str, pd.DataFrame]:
+    """
+    Écart (prédit − vrai) et « dans la fourchette » de chaque séjour test, pour chaque méthode ; avec `grille_k`,
+    aussi le kNN à k imposé (« knn k=… ») pour le balayage de k. La ligne « knn » est le kNN tel qu'il est
+    utilisé : k choisi par validation croisée sur les seuls séjours d'apprentissage (validation imbriquée).
+    `pretraitements` : variantes {nom: (méthode, options de ModeleDuree)} (mise à l'échelle, logarithme).
+    """
     tables = tables_durees(entrainement, min_lignes)
     vrai = test["duree_nuits"].astype(float)
-    sortie = {}
-    for m in methodes:
-        e = estimer(test, tables, m)
-        sortie[m] = pd.DataFrame({"ecart": e["nuits"].astype(float) - vrai,
-                                  "dedans": (vrai >= e["nuits_q1"]) & (vrai <= e["nuits_q3"])}, index=test.index)
-    return sortie
+    estimations = {m: estimer(test, tables, m) for m in methodes}
+    if len(grille_k) and len(test):
+        estimations |= {f"knn k={k}": e for k, e in
+                        ModeleDuree("knn", k=1).ajuster(entrainement).predire_grille(test, grille_k).items()}
+    for nom, (m, options) in (pretraitements or {}).items():
+        if len(test):
+            estimations[nom] = ModeleDuree(m, **options).ajuster(entrainement).predire(test)
+    return {m: pd.DataFrame({"ecart": e["nuits"].astype(float) - vrai,
+                             "dedans": (vrai >= e["nuits_q1"]) & (vrai <= e["nuits_q3"])}, index=test.index)
+            for m, e in estimations.items()}
 
 
 def _decoupages(evaluation: str, connus: pd.DataFrame, tous: pd.DataFrame | None, plis: int, graine: int,
@@ -382,7 +458,8 @@ def _decoupages(evaluation: str, connus: pd.DataFrame, tous: pd.DataFrame | None
 def valider_estimation(connus: pd.DataFrame, plis: int = 5, graine: int = 1, min_lignes: int = MIN_LIGNES,
                        methodes: tuple = METHODES[1:], tous: pd.DataFrame | None = None,
                        evaluations: tuple = EVALUATIONS, repetitions: int = 10, part_masquee: float = 0.2,
-                       bootstrap: int = 1000, min_entrainement: int = 100) -> pd.DataFrame:
+                       bootstrap: int = 1000, min_entrainement: int = 100, grille_k: tuple = K_GRILLE,
+                       pretraitements: bool = True) -> pd.DataFrame:
     """
     Chaque méthode prédit des durées CONNUES qu'on lui cache ; trois façons de choisir les durées cachées :
       croisee    validation croisée en `plis` plis, séjours tirés au hasard ;
@@ -396,20 +473,30 @@ def valider_estimation(connus: pd.DataFrame, plis: int = 5, graine: int = 1, min
       ecart_vs_reference    erreur moyenne − celle de la méthode retenue (« estimee »), intervalle bootstrap apparié
       p_wilcoxon            test des rangs signés de Wilcoxon sur |erreur| contre la méthode retenue
       erreur_mediane_nuits, a_1_nuit_pres_%, biais_nuits (< 0 : durées sous-estimées), dans_q1_q3_% (50 % attendus)
+    Balayage de k (si « knn » est parmi les méthodes) : lignes « knn k=1 », « knn k=3 »… pour chaque k de
+    `grille_k`, sur les mêmes séjours cachés ; la courbe erreur(k) montre le creux entre k trop petit (instable)
+    et k trop grand (tout le monde reçoit presque la médiane générale). La ligne « knn » choisit k elle-même,
+    sans voir les séjours testés.
+    Prétraitement (`pretraitements`) : lignes « knn (mise à l'échelle robuste) » et « <méthode> (sans
+    logarithme) » pour les méthodes à modèle présentes, sur les mêmes séjours cachés : justifient le z-score et
+    les logarithmes de la durée et du prix.
     À citer dans le mémoire pour justifier le choix.
     """
     connus = connus[connus["duree_nuits"].notna()]
     rng = np.random.default_rng(graine + 7)
     lignes = []
     for evaluation in evaluations:
-        res = {m: [] for m in methodes}
+        res = {}
+        balayage = grille_k if "knn" in methodes else ()
+        variantes = {n: v for n, v in PRETRAITEMENTS.items() if v[0] in methodes} if pretraitements else {}
         for entr, test, _ in _decoupages(evaluation, connus, tous, plis, graine, repetitions, part_masquee, min_entrainement):
-            for m, e in _erreurs(entr, test, methodes, min_lignes).items():
-                res[m].append(e)
+            for m, e in _erreurs(entr, test, methodes, min_lignes, balayage, variantes).items():
+                res.setdefault(m, []).append(e)
         if not any(res.values()):
             continue
         err = {m: pd.concat(v, ignore_index=True) for m, v in res.items() if v}
         n = len(next(iter(err.values())))
+        err = {m: e for m, e in err.items() if len(e) == n}    # un k plus grand qu'un apprentissage manque à un pli
         tirages = rng.integers(0, n, size=(bootstrap, n))
         ref = err.get(REFERENCE)
         for m, e in err.items():
