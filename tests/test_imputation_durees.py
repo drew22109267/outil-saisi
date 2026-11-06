@@ -64,3 +64,11 @@ def test_variantes_de_pretraitement(options):
     for m in ("knn", "regression", "em", "acp_iterative"):
         e = ModeleDuree(m, **options).ajuster(s.iloc[:300]).predire(s.iloc[300:])
         assert len(e) == 100 and (e["nuits"] >= 0).all() and (e["nuits_q1"] <= e["nuits"]).all()
+
+
+@pytest.mark.parametrize("methode", ["regression", "em", "acp_iterative", "softimpute"])
+def test_reglage_choisi_par_validation_croisee(methode):
+    from traitement.imputation import ModeleDuree
+    m = ModeleDuree(methode).ajuster(sejours())
+    assert m.erreurs_reglage is not None and m.reglage in m.erreurs_reglage
+    assert m.erreurs_reglage[m.reglage] == min(m.erreurs_reglage.values())

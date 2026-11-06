@@ -28,16 +28,24 @@ Méthodes (paramètre `inconnues` de traitement.chargement.preparer_sejours ; ba
                        k* = argmin_k (1/n) Σ_i |d_i − d̂_i^(k)|   (ex aequo : le plus petit k) ;
   'regression'     équations enchaînées (principe de MICE) : chaque variable incomplète, la durée comprise,
                    est prédite par une régression ridge sur toutes les autres, 10 tours :
-                       β_j = (AᵀA + λI)⁻¹ Aᵀ z_j,  z_ij ← a_iᵀ β_j   (λ = 1) ;
+                       β_j = (AᵀA + λI)⁻¹ Aᵀ z_j,  z_ij ← a_iᵀ β_j   (λ choisi par validation croisée) ;
                    le prix manquant est donc lui aussi complété avant de servir à la durée ;
   'em'             loi normale multivariée de (log(1 + durée), log prix, âge, sexe, issue, …) apprise par
                    l'algorithme EM (Dempster, Laird et Rubin, 1977), avec la covariance conditionnelle
                    C = Σ_mm − Σ_mo Σ_oo⁻¹ Σ_om dans l'étape M ; la durée reçoit son espérance conditionnelle
                    E[z_m | z_o] = μ_m + Σ_mo Σ_oo⁻¹ (z_o − μ_o), et q1, q3 = espérance ± 0,674 écart-type
                    conditionnel (quartiles de la loi normale), remis en nuits par exp(·) − 1 ;
-  'acp_iterative'  imputation de rang faible : ACP des séjours (80 % de la variance), cases vides remplacées par
-                   la reconstruction U_k S_k V_kᵀ jusqu'à stabilité ; pour un séjour inconnu, coordonnées
-                   s = (V_oᵀV_o + αI)⁻¹ V_oᵀ z_o sur ses variables écrites, durée = V_m s.
+  'acp_iterative'  imputation de rang faible : ACP des séjours (rang r choisi par validation croisée), cases vides
+                   remplacées par la reconstruction U_r S_r V_rᵀ jusqu'à stabilité ; pour un séjour inconnu,
+                   coordonnées s = (V_oᵀV_o + αI)⁻¹ V_oᵀ z_o sur ses variables écrites, durée = V_m s ;
+  'softimpute'     même famille (rang faible), sans couper à un rang : chaque valeur singulière est diminuée
+                   de λ, σ_i ← max(σ_i − λ, 0) (Mazumder, Hastie et Tibshirani, 2010) ; c'est la solution de
+                   min ½‖P_Ω(Z − R)‖² + λ‖R‖_* (norme nucléaire = somme des σ_i). Les petits axes sont rétrécis
+                   au lieu d'être gardés entiers ou jetés ; λ = fraction de σ_1 choisie par validation croisée.
+                   Séjour inconnu : coordonnées comme l'ACP, chacune rétrécie par (σ_i − λ)/σ_i.
+Réglages par validation croisée (comme k pour le kNN) : λ de la ridge (GRILLE_LAMBDA_RIDGE), λ de l'EM
+(GRILLE_LAMBDA_EM), rang de l'ACP (1 … p − 1), λ/σ_1 du SoftImpute (GRILLE_SOFTIMPUTE) ; 5 plis sur les
+séjours connus de l'apprentissage, erreur = moyenne de |nuits estimées − vraies nuits| ; ex aequo : le plus simple.
 La durée est modélisée en log(1 + nuits) et le prix en log(prix) pour les méthodes à modèle (les durées sont
 très asymétriques), puis chaque variable est centrée-réduite (z-score). Ces deux choix sont comparés par
 valider_estimation : mise à l'échelle robuste, z = (x − médiane)/(Q3 − Q1), pour le kNN, et chaque méthode à
@@ -64,8 +72,9 @@ import math
 import numpy as np
 import pandas as pd
 
-METHODES = ("exclure", "mediane", "moyenne", "mediane_age", "estimee", "knn", "regression", "em", "acp_iterative")
-A_MODELE = ("knn", "regression", "em", "acp_iterative")
+METHODES = ("exclure", "mediane", "moyenne", "mediane_age", "estimee", "knn", "regression", "em", "acp_iterative",
+            "softimpute")
+A_MODELE = ("knn", "regression", "em", "acp_iterative", "softimpute")
 MIN_LIGNES = 5
 TRANCHES_AGE = (0.0, 1.0, 5.0, 15.0, 40.0, 65.0, math.inf)
 ISSUES = ("Sortie", "Mise en observation", "Décès", "Sortie contre avis médical", "Transfert externe", "Transfert interne",
@@ -73,6 +82,9 @@ ISSUES = ("Sortie", "Mise en observation", "Décès", "Sortie contre avis médic
 Z_QUARTILE = 0.6745                                  # quartiles de la loi normale centrée réduite : ±0,6745
 K_GRILLE = (1, 3, 5, 7, 9, 11, 15, 21, 31, 51)       # valeurs de k essayées par la validation croisée du kNN
 PLIS_K = 5
+GRILLE_LAMBDA_RIDGE = (0.01, 0.1, 1.0, 10.0, 100.0)  # λ de la ridge des régressions enchaînées
+GRILLE_LAMBDA_EM = (1e-4, 1e-3, 1e-2, 1e-1)          # λ ajouté à la diagonale de Σ dans l'EM
+GRILLE_SOFTIMPUTE = (0.01, 0.03, 0.1, 0.2, 0.3, 0.5)  # λ / σ_1 du SoftImpute
 
 
 def _resume(d: pd.Series) -> tuple[float, float, float]:
@@ -134,11 +146,16 @@ def _motifs(M: np.ndarray):
 class ModeleDuree:
     """Méthodes à modèle : apprises sur les séjours connus, appliquées aux séjours sans durée."""
 
-    def __init__(self, methode: str, k: int | None = None, echelle: str = "zscore", log: bool = True):
-        """echelle : 'zscore' (moyenne, écart-type) ou 'robuste' (médiane, Q3 − Q1) ; log : durée et prix en log."""
+    def __init__(self, methode: str, k: int | None = None, echelle: str = "zscore", log: bool = True,
+                 reglage: float | None = None):
+        """
+        echelle : 'zscore' (moyenne, écart-type) ou 'robuste' (médiane, Q3 − Q1) ; log : durée et prix en log.
+        k (kNN) et reglage (λ de la ridge ou de l'EM, rang de l'ACP, λ/σ_1 du SoftImpute) : None = choisis par
+        validation croisée sur les séjours connus.
+        """
         self.methode, self.k = methode, k                # k = None : choisi par validation croisée (kNN)
-        self.echelle_type, self.log = echelle, log
-        self.erreurs_k = None
+        self.echelle_type, self.log, self.reglage = echelle, log, reglage
+        self.erreurs_k = self.erreurs_reglage = None
 
     def _tableau(self, duree: np.ndarray, lignes: pd.DataFrame) -> np.ndarray:
         J = np.column_stack([np.log1p(duree), variables(lignes)])
@@ -157,8 +174,10 @@ class ModeleDuree:
             self.centre, self.echelle = np.nanmean(J, axis=0), np.nanstd(J, axis=0)
         Z = (J - self.centre) / self.echelle
         self.Z = Z
+        if self.reglage is None and self.methode in ("regression", "em", "acp_iterative", "softimpute"):
+            self.reglage, self.erreurs_reglage = self._choisir_reglage(connus, self._grille(Z.shape[1]))
         getattr(self, f"_ajuster_{self.methode}")(Z)
-        if self.methode in ("regression", "acp_iterative"):          # résidus sur les connus (durée cachée)
+        if self.methode in ("regression", "acp_iterative", "softimpute"):   # résidus sur les connus (durée cachée)
             cachee = Z.copy(); cachee[:, 0] = np.nan
             pred = self._completer(cachee)[:, 0]
             self.residus = Z[:, 0] - pred
@@ -187,6 +206,34 @@ class ModeleDuree:
                 q1z, q3z = z + r1, z + r3
             med, q1, q3 = self._nuits(z), self._nuits(q1z), self._nuits(q3z)
         return _en_nuits(med, q1, q3, self.methode, lignes.index)
+
+    # ── réglages par validation croisée (ridge, EM, ACP, SoftImpute) ──
+    def _grille(self, p: int) -> tuple:
+        return {"regression": GRILLE_LAMBDA_RIDGE, "em": GRILLE_LAMBDA_EM, "softimpute": GRILLE_SOFTIMPUTE,
+                "acp_iterative": tuple(range(1, max(p, 2)))}[self.methode]
+
+    def _choisir_reglage(self, connus: pd.DataFrame, grille: tuple, plis: int = PLIS_K, graine: int = 1):
+        """
+        Validation croisée en `plis` plis sur les séjours connus (apprentissage seulement) : pour chaque valeur de
+        la grille, le modèle est appris sur les autres plis et estime les durées du pli caché ; erreur = moyenne de
+        |nuits estimées − vraies nuits|. Renvoie la valeur de plus petite erreur et les erreurs. Ex aequo : la plus
+        simple (λ le plus grand pour ridge, EM et SoftImpute ; rang le plus petit pour l'ACP). Moins de 2 × plis
+        séjours : None, valeur par défaut (λ = 1 ; 1e−3 ; rang à 80 % de la variance ; λ = 0,1 σ_1).
+        """
+        n = len(connus)
+        if n < 2 * plis:
+            return None, None
+        ordre = np.random.default_rng(graine).permutation(n)
+        vrai = np.round(connus["duree_nuits"].astype(float).to_numpy())
+        ecarts = {v: [] for v in grille}
+        for f in range(plis):
+            test, entr = ordre[f::plis], np.setdiff1d(ordre, ordre[f::plis])
+            for v in grille:
+                m = ModeleDuree(self.methode, echelle=self.echelle_type, log=self.log, reglage=v).ajuster(connus.iloc[entr])
+                ecarts[v].append(np.abs(m.predire(connus.iloc[test])["nuits"].to_numpy(float) - vrai[test]))
+        erreurs = {v: float(np.concatenate(e).mean()) for v, e in ecarts.items()}
+        simple = (lambda v: v) if self.methode == "acp_iterative" else (lambda v: -v)
+        return min(erreurs, key=lambda v: (erreurs[v], simple(v))), erreurs
 
     # ── k plus proches voisins ──
     def _ajuster_knn(self, Z):
@@ -226,7 +273,8 @@ class ModeleDuree:
                 for k, (med, q1, q3) in self._knn(self._vers_z(lignes), list(grille)).items()}
 
     # ── régressions enchaînées ──
-    def _ajuster_regression(self, Z, tours: int = 10, lam: float = 1.0):
+    def _ajuster_regression(self, Z, tours: int = 10):
+        lam = 1.0 if self.reglage is None else self.reglage
         M = ~np.isnan(Z)
         Zf = np.where(M, Z, 0.0)
         self.incompletes = [j for j in range(Z.shape[1]) if (~M[:, j]).any() or j == 0]
@@ -241,7 +289,8 @@ class ModeleDuree:
                 Zf[~obs, j] = A[~obs] @ b
 
     # ── loi normale multivariée par EM ──
-    def _ajuster_em(self, Z, tours: int = 100, lam: float = 1e-3, tol: float = 1e-5):
+    def _ajuster_em(self, Z, tours: int = 100, tol: float = 1e-5):
+        lam = 1e-3 if self.reglage is None else self.reglage
         n, p = Z.shape
         M = ~np.isnan(Z)
         mu, sigma = np.zeros(p), np.eye(p)
@@ -283,9 +332,12 @@ class ModeleDuree:
     def _ajuster_acp_iterative(self, Z, tours: int = 100, part: float = 0.8, tol: float = 1e-6):
         M = ~np.isnan(Z)
         Zf = np.where(M, Z, 0.0)
-        s = np.linalg.svd(Zf, compute_uv=False)
-        cumul = np.cumsum(s ** 2) / (s ** 2).sum()
-        self.rang = max(1, int((cumul < part).sum()) + 1)
+        if self.reglage is None:                         # trop peu de séjours pour choisir : 80 % de la variance
+            s = np.linalg.svd(Zf, compute_uv=False)
+            cumul = np.cumsum(s ** 2) / (s ** 2).sum()
+            self.rang = max(1, int((cumul < part).sum()) + 1)
+        else:
+            self.rang = int(min(self.reglage, Z.shape[1]))
         for _ in range(tours):
             U, s, Vt = np.linalg.svd(Zf, full_matrices=False)
             R = (U[:, :self.rang] * s[:self.rang]) @ Vt[:self.rang]
@@ -294,6 +346,26 @@ class ModeleDuree:
             if not len(avant) or np.abs(Zf[~M] - avant).max() < tol:
                 break
         self.V = Vt[:self.rang].T
+        self.retrecir = np.ones(self.rang)
+
+    # ── SoftImpute (norme nucléaire) ──
+    def _ajuster_softimpute(self, Z, tours: int = 100, tol: float = 1e-6):
+        """R = U diag(max(σ − λ, 0)) Vᵀ, cases vides ← R, jusqu'à stabilité ; λ = reglage × σ_1 (Z rempli par 0)."""
+        M = ~np.isnan(Z)
+        Zf = np.where(M, Z, 0.0)
+        lam = (0.1 if self.reglage is None else self.reglage) * np.linalg.svd(Zf, compute_uv=False)[0]
+        for _ in range(tours):
+            U, s, Vt = np.linalg.svd(Zf, full_matrices=False)
+            d = np.maximum(s - lam, 0.0)
+            avant = Zf[~M].copy()
+            Zf[~M] = ((U * d) @ Vt)[~M]
+            if not len(avant) or np.abs(Zf[~M] - avant).max() < tol:
+                break
+        garde = d > 0
+        garde[0] = True
+        self.rang = int(garde.sum())
+        self.V = Vt[garde].T
+        self.retrecir = np.where(s[garde] > 0, d[garde] / s[garde], 0.0)     # (σ_i − λ)/σ_i
 
     # ── application commune (régression, EM, ACP) ──
     def _completer(self, Z):
@@ -310,10 +382,10 @@ class ModeleDuree:
                         autres = [i for i in range(Z.shape[1]) if i != j]
                         Zc[vides, j] = np.column_stack([Zc[np.ix_(vides, autres)], np.ones(vides.sum())]) @ self.beta[j]
             return Zc
-        for motif, lignes in _motifs(M):                      # ACP itérative
+        for motif, lignes in _motifs(M):                      # ACP itérative et SoftImpute (axes rétrécis)
             o, m = motif, ~motif
             if m.any() and o.any():
-                Vo, Vm = self.V[o], self.V[m]
+                Vo, Vm = self.V[o], self.V[m] * self.retrecir
                 s = np.linalg.solve(Vo.T @ Vo + 1e-3 * np.eye(Vo.shape[1]), Vo.T @ Zc[np.ix_(lignes, np.flatnonzero(o))].T).T
                 Zc[np.ix_(lignes, np.flatnonzero(m))] = s @ Vm.T
         return Zc
