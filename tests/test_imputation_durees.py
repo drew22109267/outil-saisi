@@ -72,3 +72,13 @@ def test_reglage_choisi_par_validation_croisee(methode):
     m = ModeleDuree(methode).ajuster(sejours())
     assert m.erreurs_reglage is not None and m.reglage in m.erreurs_reglage
     assert m.erreurs_reglage[m.reglage] == min(m.erreurs_reglage.values())
+
+
+@pytest.mark.parametrize("methode", ["knn", "regression", "em", "acp_iterative", "softimpute"])
+def test_estimation_bornee_par_les_durees_connues(methode):
+    from traitement.imputation import ModeleDuree
+    s = sejours()
+    test = s.iloc[300:].copy()
+    test["prix"] = 1e9                                   # prix absurde : la durée estimée ne doit pas exploser
+    e = ModeleDuree(methode).ajuster(s.iloc[:300]).predire(test)
+    assert e["nuits_q3"].max() <= s.iloc[:300]["duree_nuits"].max()

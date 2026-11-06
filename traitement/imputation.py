@@ -174,6 +174,7 @@ class ModeleDuree:
             self.centre, self.echelle = np.nanmean(J, axis=0), np.nanstd(J, axis=0)
         Z = (J - self.centre) / self.echelle
         self.Z = Z
+        self.max_nuits = float(connus["duree_nuits"].astype(float).max())
         if self.reglage is None and self.methode in ("regression", "em", "acp_iterative", "softimpute"):
             self.reglage, self.erreurs_reglage = self._choisir_reglage(connus, self._grille(Z.shape[1]))
         getattr(self, f"_ajuster_{self.methode}")(Z)
@@ -189,7 +190,9 @@ class ModeleDuree:
 
     def _nuits(self, z: np.ndarray) -> np.ndarray:
         x = z * self.echelle[0] + self.centre[0]
-        return (np.expm1(x) if self.log else x).clip(min=0)
+        # Bornée par les durées vues à l'apprentissage : une estimation un peu extrême en log deviendrait, par
+        # exp(·) − 1, des centaines de nuits (validation temporelle de l'ACP : 182 nuits d'erreur moyenne).
+        return (np.expm1(x) if self.log else x).clip(0, self.max_nuits)
 
     def predire(self, lignes: pd.DataFrame) -> pd.DataFrame:
         Z = self._vers_z(lignes)
