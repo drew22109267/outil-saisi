@@ -229,6 +229,17 @@ def main() -> None:
 
     complet = occ.assign(presents_basse=occs["basse"]["presents"], presents_haute=occs["haute"]["presents"])
     complet.to_csv(sortie / f"occupation_{nom}.csv", sep=";", encoding="utf-8-sig")
+
+    # Autocorrélation de la série des présents, retards 1 à 14 : justifie le nombre de retards du modèle des lits.
+    #   r_k = Σ_{t>k} (y_t − ȳ)(y_{t−k} − ȳ) / Σ_t (y_t − ȳ)²
+    y = occ["presents"].to_numpy(float)
+    c = y - y.mean()
+    acf = pd.Series([float((c[k:] * c[:-k]).sum() / (c * c).sum()) for k in range(1, 15)], index=range(1, 15),
+                    name="autocorrelation").rename_axis("retard")
+    print("
+── Autocorrélation des présents (retards 1 à 14 jours)
+" + acf.round(3).to_string())
+    acf.round(4).to_csv(sortie / f"autocorrelation_{nom}.csv", sep=";", encoding="utf-8-sig")
     for sc in ("basse", "haute"):
         occs[sc].to_csv(sortie / f"occupation_{nom}_{sc}.csv", sep=";", encoding="utf-8-sig")
 
