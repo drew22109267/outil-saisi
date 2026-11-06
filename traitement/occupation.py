@@ -198,6 +198,9 @@ def reconstituer_occupation(sejours: pd.DataFrame, date_extraction: str | pd.Tim
       pic_attendu, pic_q80, pic_q95   pic attendu et ses quantiles 80 % et 95 % (ordre des entrées et des
                         sorties au hasard, loi exacte par le principe de réflexion)
       dont_censures     parmi eux, ceux dont la sortie n'est pas encore connue
+      presents_diag_<famille>   parmi les présents, ceux dont le DIAGNOSTIC D'ENTRÉE est de cette famille
+                        (traitement.imputation.DIAGNOSTICS) : connu le soir du jour d, il peut servir à prévoir
+                        les jours suivants (un paludisme grave ou une méningite restent plus longtemps)
       admissions        entrées du jour
       sorties_*         sorties du jour, par issue (pondérées pour les sorties calculées)
       lits, taux_occupation, sureffectif   si le nombre de lits est fourni
@@ -260,6 +263,13 @@ def reconstituer_occupation(sejours: pd.DataFrame, date_extraction: str | pd.Tim
     # utilisable par le modèle (variable, ou poids d'apprentissage plus faible quand la part est forte).
     imp = s["statut"] == "imputee"
     occ["dont_estimes"] = cumul(s.loc[imp, "entree"], ev_presence[ev_presence["sejour"].isin(s.index[imp])]) if imp.any() else 0.0
+    if "diagnostic_entree" in s:
+        from .imputation import DIAGNOSTICS, familles_diagnostic
+        familles = familles_diagnostic(s, colonnes=("diagnostic_entree",))
+        for k, famille in enumerate(DIAGNOSTICS):
+            dans = pd.Series(familles[:, k] == 1, index=s.index)
+            occ[f"presents_diag_{famille}"] = (cumul(s.loc[dans, "entree"], ev_presence[ev_presence["sejour"].isin(s.index[dans])])
+                                               if dans.any() else 0.0)
     occ["admissions"] = s["entree"].value_counts().reindex(jours, fill_value=0).astype(int)
     reelles = ev[ev["reelle"]]
     for issue in ISSUES:

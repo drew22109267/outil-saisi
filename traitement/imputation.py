@@ -126,11 +126,11 @@ def _age(lignes: pd.DataFrame) -> pd.Series:
     return lignes["age_texte"].map(lambda t: lire_age(None if pd.isna(t) else str(t))[0]).astype(float)
 
 
-def familles_diagnostic(lignes: pd.DataFrame) -> np.ndarray:
-    """Une indicatrice par famille de DIAGNOSTICS (diagnostic de sortie, puis d'entrée) ; vide si rien n'est écrit."""
+def familles_diagnostic(lignes: pd.DataFrame, colonnes=("diagnostic_sortie", "diagnostic_entree")) -> np.ndarray:
+    """Une indicatrice par famille de DIAGNOSTICS (texte des `colonnes` réunies) ; vide si rien n'est écrit."""
     from traitement.urgences import sans_accents
     texte = pd.Series("", index=lignes.index)
-    for c in ("diagnostic_sortie", "diagnostic_entree"):
+    for c in colonnes:
         if c in lignes:
             texte = texte + " " + lignes[c].fillna("").astype(str)
     texte = texte.map(sans_accents)

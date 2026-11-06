@@ -179,3 +179,15 @@ def test_pic_attendu_dans_l_encadrement_exact():
     assert j3["pic_attendu"] == pytest.approx(2 + 1 / 3)
     assert occ["presents"].equals(occ["pic_attendu"])
     assert ((occ["pic_bas"] <= occ["pic_attendu"]) & (occ["pic_attendu"] <= occ["pic_haut"])).all()
+
+
+def test_presents_par_famille_de_diagnostic():
+    # A : paludisme grave, 3 nuits (1er → 4) ; B : gastro-entérite, 1 nuit (2 → 3).
+    df = table([("PED", "2026-01-01", "2026-01-04", "Sortie", False),
+                ("PED", "2026-01-02", "2026-01-03", "Sortie", False)])
+    df["diagnostic_entree"] = ["APG", "GEF"]
+    s, _ = preparer_sejours(df, "PED", "2026-01-06")
+    occ = reconstituer_occupation(s, "2026-01-06", lits=2)
+    assert occ["presents_diag_paludisme"].tolist() == [1, 1, 1, 0, 0]
+    assert occ["presents_diag_digestif"].tolist() == [0, 1, 0, 0, 0]
+    assert (occ["presents_diag_vih"] == 0).all()
