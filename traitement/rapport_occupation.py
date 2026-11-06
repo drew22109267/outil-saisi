@@ -236,9 +236,7 @@ def main() -> None:
     c = y - y.mean()
     acf = pd.Series([float((c[k:] * c[:-k]).sum() / (c * c).sum()) for k in range(1, 15)], index=range(1, 15),
                     name="autocorrelation").rename_axis("retard")
-    print("
-── Autocorrélation des présents (retards 1 à 14 jours)
-" + acf.round(3).to_string())
+    print("\n── Autocorrélation des présents (retards 1 à 14 jours)\n" + acf.round(3).to_string())
     acf.round(4).to_csv(sortie / f"autocorrelation_{nom}.csv", sep=";", encoding="utf-8-sig")
     for sc in ("basse", "haute"):
         occs[sc].to_csv(sortie / f"occupation_{nom}_{sc}.csv", sep=";", encoding="utf-8-sig")
