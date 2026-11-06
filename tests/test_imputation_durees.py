@@ -82,3 +82,31 @@ def test_estimation_bornee_par_les_durees_connues(methode):
     test["prix"] = 1e9                                   # prix absurde : la durée estimée ne doit pas exploser
     e = ModeleDuree(methode).ajuster(s.iloc[:300]).predire(test)
     assert e["nuits_q3"].max() <= s.iloc[:300]["duree_nuits"].max()
+
+
+def test_xgboost_cases_vides_et_diagnostic():
+    """La durée dépend du diagnostic ; XGBoost le lit, apprend malgré les prix non écrits, et choisit ses réglages."""
+    from traitement.boosting import XGBoostRegression
+    from traitement.imputation import ModeleDuree, familles_diagnostic
+    r = np.random.default_rng(3)
+    X = r.normal(size=(300, 2))
+    X[r.random(300) < 0.3, 0] = np.nan
+    y = np.where(np.isnan(X[:, 0]), 2.0, np.where(X[:, 0] > 0, 5.0, 0.0))
+    m = XGBoostRegression(100, 0.3, 2).entrainer(X, y)
+    assert np.abs(m.predire(X) - y).mean() < 0.3                    # les manquants ont leur propre côté
+    s = sejours()
+    s["diagnostic_sortie"] = np.where(s["duree_nuits"] > 5, "Sepsis sévère", "APG")
+    d = familles_diagnostic(s)
+    assert d.shape == (len(s), 11) and np.nansum(d[:, 0]) > 0 and np.nansum(d[:, 1]) > 0
+    md = ModeleDuree("xgboost").ajuster(s.iloc[:300])
+    assert md.reglage in md.erreurs_reglage
+    e = md.predire(s.iloc[300:])
+    assert np.abs(e["nuits"] - s.iloc[300:]["duree_nuits"]).mean() < 1.5
+
+
+def test_hybride():
+    s = sejours()
+    e = estimer(s.iloc[300:], tables_durees(s.iloc[:300]), "hybride")
+    sans_prix = s.iloc[300:]["prix"].isna()
+    assert (e.loc[sans_prix, "source"] == "hybride: xgboost").all()
+    assert (e.loc[~sans_prix, "source"] == "hybride: prix").all()

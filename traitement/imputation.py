@@ -43,6 +43,17 @@ Méthodes (paramètre `inconnues` de traitement.chargement.preparer_sejours ; ba
                    min ½‖P_Ω(Z − R)‖² + λ‖R‖_* (norme nucléaire = somme des σ_i). Les petits axes sont rétrécis
                    au lieu d'être gardés entiers ou jetés ; λ = fraction de σ_1 choisie par validation croisée.
                    Séjour inconnu : coordonnées comme l'ACP, chacune rétrécie par (σ_i − λ)/σ_i.
+  'xgboost'        somme d'arbres du second ordre (traitement/boosting.py) sur log(1 + durée), avec le
+                   DIAGNOSTIC en familles (DIAGNOSTICS) en plus des variables ci-dessus ; les cases vides ne sont
+                   pas complétées, chaque coupure apprend de quel côté envoyer les séjours sans valeur.
+                   Profondeur (2, 3, 4) et nombre d'arbres (25 à 200, η = 0,1) choisis par validation croisée (3 plis) ;
+                   q1 et q3 viennent des résidus HORS échantillon de cette validation.
+  'hybride'        la médiane des séjours de même prix quand le prix est écrit et sa classe compte au moins
+                   `min_lignes` séjours ; sinon XGBoost (le prix manque : c'est là qu'un modèle peut aider).
+Diagnostic : pour reconstituer une durée PASSÉE, le diagnostic (de sortie, à défaut d'entrée) n'est pas une fuite
+de l'avenir : il est écrit sur la ligne du séjour. Il entre en familles (indicatrices 0/1, vides si aucun
+diagnostic n'est écrit) ; XGBoost l'utilise par défaut, les autres méthodes à modèle sont aussi mesurées avec lui
+(variantes « + diagnostic » de valider_estimation), et XGBoost sans lui.
 Réglages par validation croisée (comme k pour le kNN) : λ de la ridge (GRILLE_LAMBDA_RIDGE), λ de l'EM
 (GRILLE_LAMBDA_EM), rang de l'ACP (1 … p − 1), λ/σ_1 du SoftImpute (GRILLE_SOFTIMPUTE) ; 5 plis sur les
 séjours connus de l'apprentissage, erreur = moyenne de |nuits estimées − vraies nuits| ; ex aequo : le plus simple.
@@ -73,8 +84,22 @@ import numpy as np
 import pandas as pd
 
 METHODES = ("exclure", "mediane", "moyenne", "mediane_age", "estimee", "knn", "regression", "em", "acp_iterative",
-            "softimpute")
-A_MODELE = ("knn", "regression", "em", "acp_iterative", "softimpute")
+            "softimpute", "xgboost", "hybride")
+A_MODELE = ("knn", "regression", "em", "acp_iterative", "softimpute", "xgboost")
+# Familles de diagnostics (texte sans accents, minuscules), fixées d'après les sigles des registres (00-sigles du mémoire).
+DIAGNOSTICS = {
+    "paludisme": r"\bap[gs]?\b|palu|palustre",
+    "infection_grave": r"sepsis|septic|mening|infectieu|infectueu|salmonell|typho|choc",
+    "respiratoire": r"pneumo|bronch|rhino|asthm|\btoux|angine|\boma\b|respir|pulmon|\bcap\b|\boap\b",
+    "digestif": r"\bge[afu]|diarrh|vomiss|enterit|\bdsh\b|deshydrat|gastr|mugd|abdo|digest|occlusion|pancreat",
+    "anemie_drepanocytose": r"anemi|\bcvo\b|drepano",
+    "neurologique": r"convuls|\bavc\b|\bait\b|coma|encephal|cephal|ischemi|\btc\b",
+    "cardio_metabolique": r"\bhta\b|hypertens|cardi|diabet|\bdt2\b|hyperglyc|desequilibr|decompens|insuffisan|\bir\b",
+    "chirurgie_traumatisme": r"append|fractur|trauma|\bavp\b|\brta\b|plaie|brulur|abces|cellulit|dermohypo",
+    "gynecologique": r"\bpid\b|\bgeu\b|grossesse|myome|ovari|uter",
+    "malnutrition": r"\bmas\b|malnutri|kwash|marasm",
+    "vih": r"pvvs|\bvih\b|\bhiv\b",
+}
 MIN_LIGNES = 5
 TRANCHES_AGE = (0.0, 1.0, 5.0, 15.0, 40.0, 65.0, math.inf)
 ISSUES = ("Sortie", "Mise en observation", "Décès", "Sortie contre avis médical", "Transfert externe", "Transfert interne",
@@ -82,6 +107,9 @@ ISSUES = ("Sortie", "Mise en observation", "Décès", "Sortie contre avis médic
 Z_QUARTILE = 0.6745                                  # quartiles de la loi normale centrée réduite : ±0,6745
 K_GRILLE = (1, 3, 5, 7, 9, 11, 15, 21, 31, 51)       # valeurs de k essayées par la validation croisée du kNN
 PLIS_K = 5
+GRILLE_XGB_PROFONDEUR = (2, 3, 4)                    # XGBoost : profondeurs essayées (nombre d'arbres lu en chemin)
+XGB_ARBRES = 200
+PLIS_XGB = 3                                         # plis du choix des réglages de XGBoost (coût)
 GRILLE_LAMBDA_RIDGE = (0.01, 0.1, 1.0, 10.0, 100.0)  # λ de la ridge des régressions enchaînées
 GRILLE_LAMBDA_EM = (1e-4, 1e-3, 1e-2, 1e-1)          # λ ajouté à la diagonale de Σ dans l'EM
 GRILLE_SOFTIMPUTE = (0.01, 0.03, 0.1, 0.2, 0.3, 0.5)  # λ / σ_1 du SoftImpute
@@ -98,8 +126,22 @@ def _age(lignes: pd.DataFrame) -> pd.Series:
     return lignes["age_texte"].map(lambda t: lire_age(None if pd.isna(t) else str(t))[0]).astype(float)
 
 
-def variables(lignes: pd.DataFrame) -> np.ndarray:
-    """Une ligne par séjour : log prix, âge, sexe féminin, nouveau, issue (indicatrices), mois (sinus, cosinus)."""
+def familles_diagnostic(lignes: pd.DataFrame) -> np.ndarray:
+    """Une indicatrice par famille de DIAGNOSTICS (diagnostic de sortie, puis d'entrée) ; vide si rien n'est écrit."""
+    from traitement.urgences import sans_accents
+    texte = pd.Series("", index=lignes.index)
+    for c in ("diagnostic_sortie", "diagnostic_entree"):
+        if c in lignes:
+            texte = texte + " " + lignes[c].fillna("").astype(str)
+    texte = texte.map(sans_accents)
+    ecrit = texte.str.strip().ne("").to_numpy()
+    cols = [np.where(ecrit, texte.str.contains(motif, regex=True).to_numpy(float), np.nan) for motif in DIAGNOSTICS.values()]
+    return np.column_stack(cols) if len(lignes) else np.empty((0, len(DIAGNOSTICS)))
+
+
+def variables(lignes: pd.DataFrame, diagnostic: bool = False) -> np.ndarray:
+    """Une ligne par séjour : log prix, âge, sexe féminin, nouveau, issue (indicatrices), mois (sinus, cosinus),
+    et si `diagnostic` les familles de diagnostics."""
     n = len(lignes)
     prix = pd.to_numeric(lignes["prix"], errors="coerce") if "prix" in lignes else pd.Series(np.nan, index=lignes.index)
     cols = [np.log(prix.where(prix > 0)).to_numpy(float), _age(lignes).to_numpy(float)]
@@ -111,7 +153,8 @@ def variables(lignes: pd.DataFrame) -> np.ndarray:
     cols += [(issue == i).to_numpy(float) for i in ISSUES]
     mois = pd.to_datetime(lignes["entree"]).dt.month.to_numpy(float) if "entree" in lignes else np.full(n, np.nan)
     cols += [np.sin(2 * np.pi * (mois - 1) / 12), np.cos(2 * np.pi * (mois - 1) / 12)]
-    return np.column_stack(cols) if n else np.empty((0, len(cols)))
+    X = np.column_stack(cols) if n else np.empty((0, len(cols)))
+    return np.column_stack([X, familles_diagnostic(lignes)]) if diagnostic else X
 
 
 def _distances(F: np.ndarray, G: np.ndarray) -> np.ndarray:
@@ -147,7 +190,7 @@ class ModeleDuree:
     """Méthodes à modèle : apprises sur les séjours connus, appliquées aux séjours sans durée."""
 
     def __init__(self, methode: str, k: int | None = None, echelle: str = "zscore", log: bool = True,
-                 reglage: float | None = None):
+                 reglage=None, diagnostic: bool | None = None):
         """
         echelle : 'zscore' (moyenne, écart-type) ou 'robuste' (médiane, Q3 − Q1) ; log : durée et prix en log.
         k (kNN) et reglage (λ de la ridge ou de l'EM, rang de l'ACP, λ/σ_1 du SoftImpute) : None = choisis par
@@ -156,9 +199,10 @@ class ModeleDuree:
         self.methode, self.k = methode, k                # k = None : choisi par validation croisée (kNN)
         self.echelle_type, self.log, self.reglage = echelle, log, reglage
         self.erreurs_k = self.erreurs_reglage = None
+        self.diagnostic = (methode == "xgboost") if diagnostic is None else diagnostic   # XGBoost : avec, par défaut
 
     def _tableau(self, duree: np.ndarray, lignes: pd.DataFrame) -> np.ndarray:
-        J = np.column_stack([np.log1p(duree), variables(lignes)])
+        J = np.column_stack([np.log1p(duree), variables(lignes, self.diagnostic)])
         if not self.log:                                 # durée en nuits, prix en francs (colonne 1 : log prix)
             J[:, 0], J[:, 1] = duree, np.exp(J[:, 1])
         return J
@@ -237,6 +281,37 @@ class ModeleDuree:
         erreurs = {v: float(np.concatenate(e).mean()) for v, e in ecarts.items()}
         simple = (lambda v: v) if self.methode == "acp_iterative" else (lambda v: -v)
         return min(erreurs, key=lambda v: (erreurs[v], simple(v))), erreurs
+
+    # ── XGBoost (traitement/boosting.py) ──
+    def _ajuster_xgboost(self, Z, plis: int = PLIS_XGB, graine: int = 1):
+        """
+        Validation croisée en `plis` plis : pour chaque profondeur de GRILLE_XGB_PROFONDEUR, un modèle de
+        XGB_ARBRES arbres par pli ; l'erreur en nuits est lue après 25, 50, … arbres (une seule passe). Le couple
+        (profondeur, arbres) de plus petite erreur est gardé (ex aequo : le plus simple), puis appris sur tout.
+        Les résidus hors échantillon de ce couple donnent q1 et q3.
+        """
+        from traitement.boosting import XGBoostRegression
+        X, y = Z[:, 1:], Z[:, 0]
+        etapes = tuple(range(25, XGB_ARBRES + 1, 25))
+        if self.reglage is None and len(y) >= 2 * plis:
+            ordre = np.random.default_rng(graine).permutation(len(y))
+            erreurs, horsech = {}, {}
+            for prof in GRILLE_XGB_PROFONDEUR:
+                for f in range(plis):
+                    test, entr = ordre[f::plis], np.setdiff1d(ordre, ordre[f::plis])
+                    m = XGBoostRegression(XGB_ARBRES, 0.1, prof).entrainer(X[entr], y[entr])
+                    for a, z in m.predire_etapes(X[test], etapes).items():
+                        e = np.abs(np.round(self._nuits(z)) - np.round(self._nuits(y[test])))
+                        erreurs.setdefault((prof, a), []).append(e)
+                        horsech.setdefault((prof, a), np.empty(len(y)))[test] = y[test] - z
+            erreurs = {k: float(np.concatenate(v).mean()) for k, v in erreurs.items()}
+            self.reglage = min(erreurs, key=lambda k: (erreurs[k], k[0], k[1]))
+            self.erreurs_reglage = erreurs
+            self.residus = horsech[self.reglage]
+        prof, arbres = self.reglage or (3, 100)
+        self.xgb = XGBoostRegression(arbres, 0.1, prof).entrainer(X, y)
+        if not hasattr(self, "residus") or self.residus is None or len(self.residus) != len(y):
+            self.residus = y - self.xgb.predire(X)
 
     # ── k plus proches voisins ──
     def _ajuster_knn(self, Z):
@@ -377,6 +452,9 @@ class ModeleDuree:
             Zc, _, self._var_cond = self._esperance(Z, M, self.mu, self.sigma)
             return Zc
         Zc = np.where(M, Z, 0.0)
+        if self.methode == "xgboost":
+            Zc[:, 0] = self.xgb.predire(Z[:, 1:])
+            return Zc
         if self.methode == "regression":
             for _ in range(self.tours):
                 for j in self.incompletes:
@@ -417,14 +495,31 @@ def tables_durees(connus: pd.DataFrame, min_lignes: int = MIN_LIGNES) -> dict:
     return t
 
 
+def _modele(tables: dict, methode: str) -> "ModeleDuree":
+    """Modèle appris une seule fois par jeu de séjours connus (« xgboost » et « hybride » partagent le même)."""
+    cache = tables.setdefault("modeles", {})
+    if methode not in cache:
+        cache[methode] = ModeleDuree(methode).ajuster(tables["connus"])
+    return cache[methode]
+
+
 def estimer(lignes: pd.DataFrame, tables: dict, methode: str = "estimee") -> pd.DataFrame:
     """Pour chaque ligne : nuits (estimation), nuits_q1, nuits_q3 et la source de l'estimation."""
     if methode not in METHODES[1:]:
         raise ValueError(f"Méthode d'estimation inconnue : {methode} (attendues : {', '.join(METHODES[1:])}).")
-    if methode in A_MODELE:
+    if methode in A_MODELE or methode == "hybride":
         if len(lignes) == 0:
             return pd.DataFrame(columns=["nuits", "nuits_q1", "nuits_q3", "source"])
-        return ModeleDuree(methode).ajuster(tables["connus"]).predire(lignes)
+    if methode == "hybride":                           # prix écrit et classe connue : médiane par prix ; sinon XGBoost
+        res = estimer(lignes, tables, "estimee")
+        sans_prix = (res["source"] != "prix").to_numpy()
+        if sans_prix.any():
+            res.loc[sans_prix] = _modele(tables, "xgboost").predire(lignes[sans_prix]).to_numpy()
+        res[["nuits", "nuits_q1", "nuits_q3"]] = res[["nuits", "nuits_q1", "nuits_q3"]].astype(int)
+        res["source"] = np.where(sans_prix, "hybride: xgboost", "hybride: prix")
+        return res
+    if methode in A_MODELE:
+        return _modele(tables, methode).predire(lignes)
     ages = _age(lignes) if methode == "mediane_age" else None
     res = []
     for i, l in lignes.iterrows():
@@ -447,7 +542,9 @@ def estimer(lignes: pd.DataFrame, tables: dict, methode: str = "estimee") -> pd.
 REFERENCE = "estimee"                      # la méthode retenue, contre laquelle les autres sont testées
 # Variantes de prétraitement des méthodes à modèle, comparées dans valider_estimation (nom : méthode, options).
 PRETRAITEMENTS = {"knn (mise à l'échelle robuste)": ("knn", dict(echelle="robuste")),
-                  **{f"{m} (sans logarithme)": (m, dict(log=False)) for m in A_MODELE}}
+                  **{f"{m} (sans logarithme)": (m, dict(log=False)) for m in A_MODELE},
+                  **{f"{m} (+ diagnostic)": (m, dict(diagnostic=True)) for m in ("knn", "regression", "em")},
+                  "xgboost (sans diagnostic)": ("xgboost", dict(diagnostic=False))}
 EVALUATIONS = ("croisee", "temporelle", "masquage")
 
 
