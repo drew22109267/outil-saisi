@@ -1261,7 +1261,8 @@ const VUES_FIXES = { iso: [-0.62, 0.38], face: [0, 0], dessus: [0, Math.PI / 2],
 // Cadre commun des vues 3D : canvas, bulle, barre d'outils (plans à plat, rotation, ellipses) et légende cliquable.
 // Données (VUES3D) : { L (demi-étendue), axes [3 noms], bornes [[min, max] texte] facultatif,
 //   points [{p, g, info}], groupes [{nom, couleur, n}], fleches [{nom, p}], centres [{p, g}],
-//   plan [[p1, p2] segments], halos (ellipses des groupes, vrai par défaut) }.
+//   plan [[p1, p2] segments], couleurPlan et epaisseurPlan facultatifs (rouge pâle, 1 px par défaut),
+//   halos (ellipses des groupes, vrai par défaut) }.
 function cadre3D(id, H, plans) {
   const d = VUES3D.get(id), outil = (attr, t, titre) => `<button type="button" class="v3d-btn" ${attr} title="${titre}">${t}</button>`
   return `<div class="v3d" data-vue3d="${id}"><div class="v3d-scene">
@@ -1326,7 +1327,7 @@ function installer3D(racine) {
           if (d.bornes) { g.font = '11px system-ui, sans-serif'; g.fillStyle = '#8a9099'; g.fillText(d.bornes[i][0], pa[0], pa[1] + 15); g.fillText(d.bornes[i][1], pb[0], pb[1] + 15) }
         }
       }
-      if (d.plan?.length) for (const [a0, b0] of d.plan) ligne(a0, b0, 'rgba(215,38,61,.38)', 1)
+      if (d.plan?.length) for (const [a0, b0] of d.plan) ligne(a0, b0, d.couleurPlan ?? 'rgba(215,38,61,.38)', d.epaisseurPlan ?? 1)
       proj = d.points.map((pt) => { const [x, y, z, s] = P(pt.p); return { x, y, z, s, pt } })
       // Ellipses des groupes (sur les positions projetées)
       if (etatV.halos && d.groupes.length) d.groupes.forEach((gr, gi) => {

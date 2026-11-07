@@ -242,6 +242,31 @@ synthèse, mois par mois ou cause par cause.
 
 ---
 
+## 8 bis. Durées inconnues : kNN et XGBoost
+
+Comment un séjour sans date de sortie ni nombre de jours reçoit une durée. Pour pouvoir dessiner, seuls le prix
+et l'âge sont utilisés ; le traitement Python (`traitement/imputation.py`) fait le même calcul avec plus de
+variables.
+
+**kNN pas à pas** — chaque point est un séjour connu, coloré par sa durée ; l'étoile est le séjour à estimer.
+Les points cerclés d'orange sont ses k plus proches (distance d = √((Δz_prix)² + (Δz_âge)²)), le cercle passe
+par le k-ième. Estimation = médiane de leurs durées. Choisir un séjour connu : sa durée est cachée, l'erreur se
+lit sous le tableau. **kNN en 3D** — au sol les variables, en hauteur la durée : des fils de longueurs proches =
+estimation sûre ; très différentes = estimation fragile (fourchette large). **Choix de k** — courbe pleine
+(séjours jamais vus) en creux : le k du creux est le bon ; la courbe en tirets (séjours appris) vaut 0 pour
+k = 1 et ne sert qu'à montrer pourquoi on ne se juge pas sur ses propres données.
+
+**XGBoost, le premier arbre** — chaque ligne du tableau est une question essayée ; la retenue a le plus grand
+gain = ½ [G_G²/(H_G + 1) + G_D²/(H_D + 1) − G²/(H + 1)]. Dans l'arbre, chaque feuille donne w = −G/(H + 1) :
+orange = séjours plus longs que la moyenne, bleu = plus courts. La carte montre les mêmes feuilles comme des
+rectangles du plan prix × âge. **XGBoost en 3D** — la nappe est la durée prévue ; elle part plate (0 arbre) et
+se plie en marches d'escalier arbre après arbre ; points orange au-dessus (sous-estimés), bleus en dessous.
+**Profondeur et nombre d'arbres** — traits pleins (jamais vus) : prendre le creux ; tirets (séjours appris) :
+baissent toujours, l'écart entre les deux = apprentissage par cœur. Les erreurs de ce bandeau n'utilisent que
+deux variables : le choix de la méthode se fait sur la validation des durées (chapitre 4 du mémoire).
+
+---
+
 ## 9. Figures et tableaux produits par Python (`resultats/`)
 
 | Fichier | Lecture |

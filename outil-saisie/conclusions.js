@@ -413,6 +413,39 @@
         sens: rel < 5 ? 'Les données manquantes changent très peu le résultat : l’occupation reconstituée est robuste.' : rel < 15 ? 'Les données manquantes déplacent un peu le niveau : le résultat tient, avec une marge à citer.' : 'Les données manquantes changent nettement le résultat : l’occupation reconstituée dépend des hypothèses.',
         decision: rel < 15 ? 'La série principale peut servir de cible au modèle ; l’incertitude est à rappeler dans les limites.' : 'Compléter les durées manquantes avant d’entraîner, ou entraîner sur la période où elles sont rares.',
         faire: 'Banc P1 (durées inconnues exclues ou estimées) et P3 (convention du nombre de jours) : vérifier que le choix ne change pas le classement des modèles.' } } },
+    // Rubrique « Durées inconnues : kNN et XGBoost » (imputation-visuelle.js) : chiffres transmis par res.mesures.
+    ...['kNN pas à pas : un séjour et ses k plus proches voisins', 'kNN en 3D : la durée des voisins en hauteur'].map((t) => ({ t, nom: 'Estimation d’une durée par les voisins', banc: 'P1', f: (c, res) => {
+      const m = res?.mesures; if (!m) return null
+      return { constat: `Avec k = ${m.k} voisins, le séjour choisi reçoit ${m.nuits} j (fourchette ${m.q1} à ${m.q3} j)${m.vraie !== null ? ` ; sa vraie durée, cachée pendant le calcul, est ${m.vraie} j (erreur ${Math.abs(m.nuits - m.vraie)} j)` : ''}.`,
+        sens: m.q3 - m.q1 <= 2 ? 'Les voisins ont des durées proches : pour ce profil (prix, âge), la durée est prévisible.' : 'Les voisins ont des durées dispersées : pour ce profil, le prix et l’âge ne suffisent pas à fixer la durée ; l’estimation reste une valeur centrale, à lire avec sa fourchette.',
+        decision: 'Un seul séjour ne décide rien : la méthode est jugée sur tous les séjours connus (validation croisée, troisième vue de la rubrique), puis comparée aux autres méthodes dans la validation des durées (banc P1).',
+        faire: 'Essayer plusieurs séjours connus : si l’erreur est souvent grande, regarder le k choisi par la validation croisée et la validation des durées (chapitre 4 du mémoire).' } } })),
+    { t: 'kNN : choisir k par validation croisée (5 plis)', nom: 'Choix de k', banc: 'P1', f: (c, res) => {
+      const m = res?.mesures; if (!m) return null
+      const gain = 100 * (m.mediane - m.erreur) / Math.max(1e-9, m.mediane)
+      return { constat: `k = ${m.k} donne la plus petite erreur sur des séjours jamais vus : ${f(m.erreur, 2)} j, contre ${f(m.mediane, 2)} j pour la médiane de tout le service (${gain >= 0 ? `${f(gain, 0)} % de mieux` : `${f(-gain, 0)} % de moins bien`}). Mesurée sur les séjours appris, l’erreur avec k = 1 vaut ${f(m.app1, 2)} j.`,
+        sens: gain >= 10 ? 'Le prix et l’âge renseignent sur la durée : des séjours qui se ressemblent durent à peu près autant. L’erreur nulle (ou presque) avec k = 1 sur les séjours appris est trompeuse : chaque séjour y est son propre voisin.' : 'Sur le prix et l’âge seuls, les voisins ne font guère mieux que la médiane : la durée dépend d’autres choses (diagnostic, issue), que le modèle Python ajoute.',
+        decision: 'k est choisi ainsi, automatiquement, dans le modèle Python (même grille, 5 plis) ; jamais à la main.',
+        faire: `Si le k choisi est au bord de la grille (1 ou ${m.kmax}), élargir la grille ; la méthode kNN est ensuite comparée aux autres dans la validation des durées (croisée, temporelle, masquage).` } } },
+    { t: 'XGBoost pas à pas : le premier arbre, calcul par calcul', nom: 'Première question de XGBoost', banc: 'P1', f: (c, res) => {
+      const m = res?.mesures; if (!m) return null
+      return { constat: `La première question est « ${m.question} » (gain ${f(m.gain, 2)}) ; meilleure question sur le prix : gain ${f(m.gPrix, 2)} ; sur l’âge : ${f(m.gAge, 2)}.`,
+        sens: m.gPrix >= m.gAge ? 'Le prix sépare mieux les séjours courts des longs que l’âge : c’est cohérent avec la facturation, qui suit la durée du séjour.' : 'L’âge sépare mieux les séjours courts des longs que le prix : selon l’âge, les enfants restent plus ou moins longtemps.',
+        decision: 'La variable de la première question est la plus utile pour estimer une durée inconnue. La méthode hybride garde la médiane par prix quand la classe de prix existe et prend XGBoost sinon.',
+        faire: 'Vérifier sur la validation des durées (toutes les variables, trois évaluations) que XGBoost fait mieux que la médiane par prix avant de lui confier un séjour.' } } },
+    { t: 'XGBoost en 3D : la surface des durées, arbre après arbre', nom: 'Apprentissage de XGBoost', banc: 'P1', f: (c, res) => {
+      const m = res?.mesures; if (!m) return null
+      return { constat: `Sans arbre, l’erreur est de ${f(m.e0, 2)} j (tout le monde reçoit la même durée). Avec ${m.m} arbres de profondeur ${m.prof} : ${f(m.eChoix, 2)} j sur des séjours jamais vus, ${f(m.eApp, 2)} j sur les séjours appris.`,
+        sens: m.eChoix - m.eApp > 0.3 ? 'L’écart entre séjours appris et jamais vus montre que le modèle colle déjà en partie au bruit des séjours appris : plus d’arbres n’aiderait pas.' : 'Les deux erreurs restent proches : le modèle apprend la forme générale sans coller aux séjours appris.',
+        decision: 'Le nombre d’arbres et la profondeur sont choisis par validation croisée (vue suivante), comme dans le modèle Python.',
+        faire: 'Faire défiler le film : la nappe doit se plier là où les séjours se regroupent (classes de prix, jeunes enfants), pas autour de séjours isolés.' } } },
+    { t: 'XGBoost : profondeur et nombre d’arbres par validation croisée (3 plis)', nom: 'XGBoost, kNN ou médiane', banc: 'P1', f: (c, res) => {
+      const m = res?.mesures; if (!m) return null
+      const meilleur = [['XGBoost', m.xgb], ['le kNN', m.knn], ['la médiane du service', m.med]].sort((a, b) => a[1] - b[1])[0]
+      return { constat: `Sur le prix et l’âge seuls : XGBoost (profondeur ${m.prof}, ${m.m} arbres) ${f(m.xgb, 2)} j ; kNN (k = ${m.k}) ${f(m.knn, 2)} j ; médiane du service ${f(m.med, 2)} j. Le plus précis ici : ${meilleur[0]}.`,
+        sens: 'Ces erreurs sont un peu optimistes (le réglage est choisi sur les mêmes séjours) et n’utilisent que deux variables : elles montrent le mécanisme, pas le classement final.',
+        decision: 'Le choix de la méthode se fait sur la validation des durées du traitement Python : toutes les variables, trois évaluations (croisée, temporelle, masquage réaliste) et un test de Wilcoxon contre la méthode retenue.',
+        faire: 'Reporter le tableau de la validation des durées au chapitre 4 du mémoire et citer cette vue pour expliquer le choix des réglages.' } } },
     { t: 'Analyse de survie : durée de séjour (Kaplan-Meier, log-rank)', nom: 'Durée de séjour (survie)', banc: 'D5, modèle de durée', f: (c, res) => {
       const m = res?.mesures; if (!m?.km?.length) return null
       const t = m.km.map((k) => `${k.nom} : médiane ${f(k.mediane, 0)} nuit(s)`)
@@ -798,6 +831,12 @@
     'Pic de la journée : plus grand nombre d’enfants présents en même temps': [7, 'Encadrer le vrai besoin en lits au moment le plus chargé.', 'Dépend de la méthode de comptage (P8) : le recensement de minuit en est la borne basse.'],
     'Occupation heure par heure : pic, surnombre et incertitude (heures inconnues)': [7, 'Estimer le surnombre dans la journée malgré l’absence d’heures dans le registre.', 'Les fenêtres d’heures sont une hypothèse du prétraitement, à faire varier.'],
     'Bilan des flux (entrées − sorties) et recalage sur des comptages réels': [2, 'Vérifier la reconstitution de l’occupation contre des effectifs réellement comptés.', 'Seule validation externe du prétraitement : un écart systématique impose un recalage de la série cible.'],
+    'kNN pas à pas : un séjour et ses k plus proches voisins': [2, 'Montrer comment un séjour sans durée reçoit la médiane des durées de ses k séjours les plus ressemblants.', 'Méthode « knn » du réglage P1 (durées inconnues) ; traitement/imputation.py utilise plus de variables.'],
+    'kNN en 3D : la durée des voisins en hauteur': [2, 'Voir en relief que les voisins sont choisis sur les variables (au sol) et votent par leur durée (en hauteur).', 'Méthode « knn » du réglage P1.'],
+    'kNN : choisir k par validation croisée (5 plis)': [2, 'Choisir k sur des séjours jamais vus, et montrer pourquoi l’erreur sur les séjours appris trompe.', 'Réglage de la méthode « knn » du P1, choisi de la même façon en Python.'],
+    'XGBoost pas à pas : le premier arbre, calcul par calcul': [2, 'Refaire à la main le calcul d’un arbre du second ordre : g, G, H, gain, feuille w = −G/(H + λ).', 'Méthodes « xgboost » et « hybride » du réglage P1.'],
+    'XGBoost en 3D : la surface des durées, arbre après arbre': [2, 'Voir la prévision de XGBoost se construire par petites corrections successives.', 'Méthodes « xgboost » et « hybride » du réglage P1.'],
+    'XGBoost : profondeur et nombre d’arbres par validation croisée (3 plis)': [2, 'Choisir la profondeur et le nombre d’arbres sur des séjours jamais vus ; comparer à la médiane et au kNN.', 'Réglages de la méthode « xgboost » du P1, choisis de la même façon en Python.'],
     'Simulation de Monte-Carlo : incertitude de l’occupation': [2, 'Mesurer combien les données manquantes changent la série cible.', 'Teste la robustesse des réglages P1 (durées inconnues) et P3 (convention des jours).'],
     'Analyse de survie : durée de séjour (Kaplan-Meier, log-rank)': [2, 'Estimer la durée de séjour sans jeter les enfants encore hospitalisés (censurés).', 'Fixe la fenêtre « encore hospitalisé » (P2) et les groupes utiles pour estimer les durées inconnues (P1).'],
     'Modèle de file M/G/∞ : loi du nombre d’enfants présents': [5, 'Comparer la variabilité réelle de l’occupation au hasard pur.', ''],
