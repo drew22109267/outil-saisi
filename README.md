@@ -54,19 +54,25 @@ outil-saisi/
 │   ├── statistiques.js           bibliothèque statistique écrite à la main
 │   ├── indicateurs.js            rubriques et graphes de l'onglet Indicateurs
 │   ├── occupation-validation.js  bilan des flux, Monte-Carlo, Kaplan-Meier, file M/G/∞, pic de la journée
+│   ├── multivarie.js             AFDM, classification k-means, comparaison des méthodes multivariées
+│   ├── imputation-visuelle.js    durées inconnues : kNN et XGBoost pas à pas, en 2D et en 3D
+│   ├── resultats-modele.js       résultats du modèle NERA importés (bancs d'essai, conclusions)
+│   ├── apprentissage.js          apprentissage des SVM et des arbres importé du Python (frontières, film, courbes)
+│   ├── rapport.js                rapport imprimable (PDF) et liste des corrections de saisie
 │   ├── temps.js, legende.js      zoom, regroupement, animation ; légendes cliquables
 │   ├── synthese.js               cartes de chiffres avec leur graphique, style des rubriques
 │   ├── menu-indicateurs.js       menu flottant des rubriques (la barre latérale ne défile plus)
 │   ├── conclusions.js            conclusions pour le modèle sous chaque analyse, et leur récapitulatif
 │   ├── barre-haut.js             filtres dans la barre du haut, bouton profil, carte Sauvegarde
 │   ├── calendrier.js             jours fériés et vacances scolaires camerounais
-│   ├── convertir_photos.bat      conversion des photos (HEIC → JPEG, sans métadonnées)
+│   ├── convertir_photos.bat/.ps1 conversion des photos (HEIC → JPEG, sans métadonnées)
 │   ├── LISEZMOI.md               mode d'emploi détaillé
 │   └── INTERPRETER-LES-GRAPHES.md  comment lire chaque graphe
 ├── traitement/                   traitement des données en Python (paquet installable)
 │   ├── depuis_outil.py           CSV de l'outil → format harmonisé NERA, corrections de dates
 │   ├── chargement.py             lecture, statuts des séjours, convention des jours, période exploitable
-│   ├── imputation.py             durées inconnues : neuf méthodes (médiane, prix, k-NN, régressions, EM, ACP…)
+│   ├── imputation.py             durées inconnues : douze méthodes (médiane, prix, kNN, ridge, EM, ACP, XGBoost…)
+│   ├── boosting.py               XGBoost écrit à la main (numpy), pour les durées inconnues
 │   ├── occupation.py             occupation jour par jour : trois méthodes, trois scénarios, pic, capacité
 │   ├── indicateurs.py            TOM, DMS, rotation, intervalle de rotation, mortalité, avec fourchette
 │   ├── garde_fous.py             loi de Little, Erlang B
@@ -74,7 +80,9 @@ outil-saisi/
 │   ├── verrou.py                 période de test final verrouillée
 │   ├── comptage.py               méthodes de comptage et noms des fichiers de résultats
 │   ├── rapport_occupation.py     de l'export à l'occupation et aux indicateurs (script)
-│   └── qualite_saisie.py         comparaison de deux saisies des mêmes photos (kappa de Cohen)
+│   ├── qualite_saisie.py         comparaison de deux saisies des mêmes photos (kappa de Cohen)
+│   ├── urgences.py               registre des urgences : lecture et nettoyage des passages (module triage)
+│   └── reproductibilite.py       versions, commande et commit notés à côté de chaque résultat
 ├── verification/                 vérification de tous les calculs (outil = Python = calcul direct)
 ├── tests/                        tests automatiques (pytest)
 ├── traitement.ipynb              le traitement pas à pas, avec les explications (notebook Jupyter)
@@ -290,7 +298,7 @@ CSV de l'outil (un fichier, tous les mois)
     ▼
 donnees/export_outil_PED.csv
     │  traitement/chargement.py       période verrouillée, statut de chaque sortie, convention des jours
-    │  traitement/imputation.py       durées inconnues : neuf méthodes, validation croisée de chacune
+    │  traitement/imputation.py       durées inconnues : douze méthodes, validées de trois façons
     ▼
 séjours (entrée, sortie, sortie basse, part inclusive p, statut, issue, durée)
     │  traitement/occupation.py       présents chaque jour : minuit, journée ou pondéré ; pic de la journée
@@ -330,7 +338,12 @@ Affiche la convention des jours mesurée, les séjours gardés et écartés, la 
 sa fourchette, les bornes du pic de la journée, la loi de Little et Erlang B, les indicateurs par mois et les
 scénarios de capacité. Écrit dans `resultats/` : `occupation_<SERVICE>.csv` (et ses versions basse et haute),
 `indicateurs_<SERVICE>_par_mois.csv` et `_par_annee.csv`, `scenarios_lits_<SERVICE>.csv`,
-`occupation_<SERVICE>.png`, le diagramme de flux des données et la liste des reports suspects.
+`autocorrelation_<SERVICE>.csv` (autocorrélation des présents, retards 1 à 14 jours),
+`occupation_<SERVICE>.png`, le diagramme de flux des données et la liste des reports suspects. Le fichier
+d'occupation contient aussi, chaque jour, les présents par famille de diagnostic d'entrée
+(`presents_diag_<famille>` : paludisme, infection grave, respiratoire, digestif…), connus le soir même et donc
+utilisables pour la prévision. La mise en observation (MEO) est une issue à part entière : harmonisée, comptée
+dans l'occupation et traitée à part dans l'estimation des durées.
 
 | Option | Effet |
 |---|---|
@@ -338,7 +351,7 @@ scénarios de capacité. Écrit dans `resultats/` : `occupation_<SERVICE>.csv` (
 | `--heure-entree 12 --heure-sortie 13 --duree-meme-jour 8` | heures moyennes de la méthode pondérée (entrées à toute heure, sorties de jour 8–18 h) |
 | `--lits 18` ou `--lits-fichier donnees/lits_PED.csv` | capacité fixe, ou variable (`date_debut;lits`) |
 | `--scenarios-lits 15 16 … 20` | taux pour chaque capacité : le nombre de lits réellement opérationnels varie (20 installés) |
-| `--inconnues exclure\|mediane\|moyenne\|mediane_age\|estimee\|knn\|regression\|em\|acp_iterative` | traitement des durées inconnues (voir ci-dessous) |
+| `--inconnues exclure\|mediane\|moyenne\|mediane_age\|estimee\|knn\|regression\|em\|acp_iterative\|softimpute\|xgboost\|hybride` | traitement des durées inconnues (voir ci-dessous) |
 | `--fenetre-censure 30\|p95` | délai au-delà duquel un séjour sans sortie n'est plus « encore hospitalisé » |
 | `--rodage-debut` | rodage compté depuis le premier jour d'enregistrement |
 | `--reports retirer` | fusion des reports confirmés (seulement après confirmation par le service) |
@@ -370,13 +383,17 @@ formules sont dans [`MATHEMATIQUES.md`](MATHEMATIQUES.md) et la lecture de chaqu
 | Occupation | taux par période, répartition des jours, jour de la semaine, pic de la journée, Little et Erlang B, bilan des flux, Monte-Carlo, Kaplan-Meier, file M/G/∞ | sections 1 et 2 |
 | Statistiques descriptives | moyenne, médiane, quantiles, asymétrie, aplatissement, Jarque-Bera, histogramme, droite de Henry, Wilson | section 3 |
 | Corrélations et tests | Pearson, Spearman, Kendall, χ² et V de Cramér, Welch, ANOVA, Kruskal-Wallis, Mann-Whitney, régression multiple | section 3 |
-| Analyse multivariée | ACP normée, KMO, Bartlett, analyse parallèle de Horn, cercle des corrélations | section 3 |
+| Analyse multivariée | ACP normée, KMO, Bartlett, analyse parallèle de Horn, cercle des corrélations, valeurs-test ; AFDM, k-means, comparaison des méthodes par leur stabilité | section 3 |
+| Durées inconnues : kNN et XGBoost | un séjour et ses k voisins (tableau des distances, vote), vue 3D ; choix de k ; premier arbre XGBoost calcul par calcul (g, gain, feuilles) ; surface des durées arbre après arbre en 3D (film) ; profondeur et nombre d'arbres par validation croisée | `traitement/imputation.py`, `traitement/boosting.py` |
+| Résultats du modèle | fichier importé du dépôt nera-modele : bancs d'essai, erreurs, Diebold-Mariano, conclusions | — |
+| Apprentissage : SVM et arbres | fichier importé du dépôt nera-modele : frontières de décision en 2D et 3D, film de l'apprentissage, sous- et sur-apprentissage | — |
 | Séries temporelles | courbe jour par jour, décomposition, ACF, PACF, Ljung-Box, ADF, KPSS, périodogramme | section 4 |
 | Modèles de prévision de référence | naïf, saisonnier, lissages, Holt, Holt-Winters, Thêta, AR(p), SARIMA ; MAE, RMSE, MASE, Diebold-Mariano | section 5 |
 
 Commandes communes : **méthode de comptage** (minuit, journée, pondérée, ou les trois côte à côte), **capacité**
 de départ et changements (`01/03/25=20`), regroupement **jour · semaine · mois · année**, **zoom**,
-déplacement, **animation**, **légendes cliquables** (masquer ou afficher chaque courbe).
+déplacement, **animation**, **légendes cliquables** (masquer ou afficher chaque courbe). Sous chaque analyse, une
+**conclusion pour le modèle** (constat, sens, décision, à faire) ; le bouton **Rapport** imprime les rubriques en PDF.
 
 **Période verrouillée** : les lignes entrées à partir du **01/09/2026** sont gardées mais n'entrent dans
 **aucune** analyse (section 8).
@@ -406,7 +423,7 @@ noyau, perte, τ, hyperparamètres, validation) sont dans `module_lit/METHODE.md
 
 | Décision | Retenu | Alternatives | Pourquoi | Banc |
 |---|---|---|---|---|
-| Durées inconnues | estimée (prix, puis issue, puis médiane) | exclure, médiane, moyenne, médiane par âge, k plus proches voisins, régressions enchaînées, EM, ACP itérative | exclure sous-estime l'occupation des mois incomplets ; le prix suit la durée (tarif à la journée) ; les méthodes à modèle combinent prix, âge, sexe, issue et mois, et complètent un prix manquant | P1 |
+| Durées inconnues | hybride (médiane du même prix, sinon XGBoost) | estimée (prix, puis issue, puis médiane : référence), exclure, médiane, moyenne, médiane par âge, kNN, régressions enchaînées, EM, ACP itérative, SoftImpute, XGBoost | exclure sous-estime l'occupation des mois incomplets ; le prix suit la durée (tarif à la journée) ; l'hybride bat la médiane par prix dans les trois évaluations (voir ci-dessous) | P1 |
 | Fenêtre de censure | p95 des durées connues | 14, 30, 60 jours | s'adapte au service au lieu d'un nombre arbitraire | P2 |
 | Convention des jours | série attendue (nuit incertaine = 1 − p) | tout inclusif, tout en nuits | espérance exacte, sans supposer une seule pratique | P3, sensibilité |
 | Patients reportés | gardés | fusionnés | la fusion n'est sûre qu'une fois confirmée par le service | P4 |
@@ -418,28 +435,45 @@ noyau, perte, τ, hyperparamètres, validation) sont dans `module_lit/METHODE.md
 | Fautes d'année ou de mois sur l'entrée | corrigées et listées, à reporter dans l'outil | ligne gardée telle quelle | une entrée en 2023 fausse tout le début de la série | contrôle du convertisseur |
 | Départ du rodage | premier jour d'enregistrement + max(14 j, p95 des durées) | début du premier mois | les enfants présents au premier jour du registre ont été admis avant : on attend qu'ils soient sortis | P5 |
 
-### Durées de séjour inconnues : neuf méthodes comparées
+### Durées de séjour inconnues : douze méthodes comparées
 
-Certaines lignes n'ont ni date de sortie ni nombre de jours. `traitement/imputation.py` propose neuf traitements,
-tous appris sur les séjours dont la durée est connue :
+Certaines lignes n'ont ni date de sortie ni nombre de jours. `traitement/imputation.py` propose douze traitements,
+tous appris sur les seuls séjours dont la durée est connue :
 
-| Méthode | Principe |
+| Méthode | Principe | Réglage choisi par validation croisée |
+|---|---|---|
+| `exclure` | le séjour n'entre pas dans l'occupation | — |
+| `mediane`, `moyenne` | la durée du milieu, ou la durée moyenne, du service | — |
+| `mediane_age` | la médiane de la tranche d'âge (< 1 an, 1–4, 5–14, 15–39, 40–64, ≥ 65 ans) | — |
+| `estimee` (référence) | la médiane des séjours au même prix, sinon à la même issue, sinon du service | — |
+| `knn` | médiane des k séjours connus les plus proches (prix, âge, sexe, issue, Ancien/Nouveau, mois) | k (1 à 51), 5 plis |
+| `regression` | équations enchaînées (ridge) : chaque information manquante, prix compris, puis la durée | λ, 5 plis |
+| `em` | loi normale multivariée apprise par l'algorithme EM ; espérance conditionnelle de la durée | λ, 5 plis |
+| `acp_iterative` | reconstruction de rang faible par l'ACP, répétée jusqu'à stabilité | rang (1 à p − 1), 5 plis |
+| `softimpute` | rang faible sans coupure : chaque valeur singulière est diminuée de λ | λ/σ₁, 5 plis |
+| `xgboost` | somme d'arbres du second ordre (`traitement/boosting.py`), avec le diagnostic en familles ; une case vide est envoyée du côté appris par chaque coupure | profondeur (2, 3, 4) et nombre d'arbres (25 à 200), 3 plis |
+| `hybride` (retenue) | la médiane des séjours de même prix quand le prix est écrit et sa classe assez fournie ; sinon XGBoost | ceux de XGBoost |
+
+La durée est travaillée en log(1 + nuits) et le prix en log(prix) par les méthodes à modèle, puis chaque variable
+est centrée-réduite ; une estimation ne dépasse jamais la plus longue durée connue de l'apprentissage. Chaque
+méthode donne aussi un 1er et un 3e quartile (scénarios « basse » et « haute » de l'occupation). Des variantes
+sont aussi mesurées : mise à l'échelle robuste pour le kNN, sans logarithme, avec ou sans diagnostic.
+
+`valider_estimation` cache la durée de séjours connus et la prédit de **trois façons** :
+
+| Évaluation | Principe |
 |---|---|
-| `exclure` | le séjour n'entre pas dans l'occupation |
-| `mediane`, `moyenne` | la durée du milieu, ou la durée moyenne, du service |
-| `mediane_age` | la médiane de la tranche d'âge (< 1 an, 1–4, 5–14, 15–39, 40–64, ≥ 65 ans) |
-| `estimee` (retenue) | la médiane des séjours au même prix, sinon à la même issue, sinon du service |
-| `knn` | les 15 séjours connus les plus proches (prix, âge, sexe, issue, Ancien/Nouveau, mois) |
-| `regression` | équations enchaînées (ridge) : chaque information manquante, prix compris, puis la durée |
-| `em` | loi normale multivariée apprise par l'algorithme EM ; espérance conditionnelle de la durée |
-| `acp_iterative` | reconstruction de rang faible par l'ACP |
+| croisée | 5 plis : chaque séjour est prédit par un modèle qui ne l'a pas vu |
+| temporelle | apprendre sur les mois passés, tester le mois suivant (rien du futur) |
+| masquage réaliste | cacher les séjours connus qui ressemblent aux vrais manquants (mois, prix écrit, issue écrite), 10 tirages |
 
-La durée est travaillée en log(1 + nuits) par les méthodes à modèle ; chacune donne aussi un 1er et un 3e
-quartile (scénarios « basse » et « haute » de l'occupation). Deux mesures jugent chaque méthode :
-`valider_estimation` (validation croisée en 5 plis : erreur moyenne et médiane en nuits, part à ±1 nuit, biais,
-part des vraies durées dans la fourchette), écrite dans `estimation_durees_<SERVICE>.csv` ; et le banc P1 du
-module lit (effet sur la prévision des lits). Les deux s'affichent dans l'outil, rubrique « Résultats du modèle ».
-
+Pour chaque méthode : erreur moyenne et médiane en nuits, intervalle à 95 % par bootstrap (1000 tirages), part à
+±1 nuit, biais, part des vraies durées dans la fourchette, et test de Wilcoxon contre la référence. Résultats dans
+`estimation_durees_<SERVICE>.csv`, avec le banc P1 du module lit (effet sur la prévision des lits) ; les deux
+s'affichent dans l'outil, rubrique « Résultats du modèle ». Sur la pédiatrie, l'hybride fait mieux que la médiane
+par prix dans les trois évaluations (erreur moyenne : 1,16 contre 1,23 nuit en croisée, 1,23 contre 1,29 en
+temporelle, 1,25 contre 1,31 en masquage ; Wilcoxon p ≤ 0,022). La rubrique « Durées inconnues : kNN et XGBoost »
+de l'outil montre le calcul du kNN et de XGBoost pas à pas, sur les séjours saisis.
 
 ---
 
@@ -447,7 +481,7 @@ module lit (effet sur la prévision des lits). Les deux s'affichent dans l'outil
 
 ```bash
 ~/memoire-env/bin/python -m verification.verifier_calculs     # 118 contrôles, données fictives
-~/memoire-env/bin/python -m pytest tests -q                    # 21 tests
+~/memoire-env/bin/python -m pytest tests -q                    # tests automatiques
 ```
 
 **Vérification** (`verification/`, détail dans [`MATHEMATIQUES.md`](MATHEMATIQUES.md), section 6) : sur un registre
@@ -462,6 +496,7 @@ journée et une capacité variable ; chaque fonction de `statistiques.js` est co
 | `test_indicateurs.py` | TOM, DMS, rotation, mortalité ; part inclusive globale et mensuelle ; trois scénarios |
 | `test_verrou.py` | rien après le verrou n'est lu ; ouverture journalisée ; période exploitable |
 | `test_traitement.py` | patients reportés, capacité variable, kappa de Cohen |
+| `test_imputation_durees.py` | toutes les méthodes d'estimation des durées, sur des séjours fictifs |
 
 Les fichiers JavaScript se vérifient aussi par `node --check <fichier>.js` ; dans le navigateur, chaque rubrique
 affiche « Calcul impossible » avec le message d'erreur si un calcul échoue.
@@ -495,6 +530,9 @@ avec une phrase de confirmation ; chaque ouverture est inscrite dans `resultats/
 | Outil de saisie : saisie, import, contrôle qualité page par page, avertissements | fait, utilisé pour la pédiatrie |
 | Statistiques de l'outil, zoom et animation, légendes cliquables, guide d'interprétation | fait |
 | Traitement : conversion, statuts, trois méthodes de comptage, pic, capacité variable, indicateurs, garde-fous | fait, testé, vérifié |
+| Durées inconnues : douze méthodes, trois évaluations, rubrique pas à pas kNN et XGBoost dans l'outil | fait ; hybride retenue |
+| Présents par famille de diagnostic, autocorrélation des présents | fait |
+| Affichage dans l'outil des résultats du modèle NERA (lits et triage) | fait |
 | Saisie de la pédiatrie (juillet 2024 → octobre 2026) | en cours de correction (dates incohérentes, trous) |
 | Registre des urgences (module triage du modèle NERA) | colonnes définies dans `registres.js`, saisie à faire |
 | Périodes où des lits étaient non opérationnels (pour une capacité datée), heures habituelles d'entrée et de sortie | à confirmer avec le major du service |
