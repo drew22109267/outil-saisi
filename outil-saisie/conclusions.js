@@ -14,7 +14,7 @@
   const S = window.Stat
   if (!S || typeof ONGLETS === 'undefined') return
   document.head.appendChild(Object.assign(document.createElement('style'), { textContent: `
-  .ind-conclusion { margin-top: 12px; padding: 12px 14px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--surface); font-size: 13px; line-height: 1.55; }
+  .ind-conclusion { margin-top: 12px; padding: 12px 14px; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface); font-size: 13px; line-height: 1.55; }
   .ind-conclusion-k { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--ink); }
   .ind-conclusion-k svg { color: var(--brand); }
   .ind-conclusion p { margin: 3px 0; }

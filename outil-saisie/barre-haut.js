@@ -27,11 +27,11 @@
   .profil-btn:hover, .profil-btn[aria-expanded=true] { background: var(--surface); border-color: var(--ink); }
   .profil-btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
   .profil-menu { position: absolute; right: 0; top: calc(100% + 8px); z-index: 60; min-width: 230px; padding: 6px; background: var(--surface);
-    border: 1px solid var(--line-strong); border-radius: 14px; box-shadow: 0 12px 32px rgba(15, 18, 25, .14); }
+    border: 1px solid var(--line-strong); border-radius: 4px; box-shadow: 0 12px 32px rgba(15, 18, 25, .14); }
   .profil-menu[hidden] { display: none; }
   .profil-menu .profil-k { padding: 8px 10px 6px; font-size: 12px; color: var(--muted); }
   .profil-menu .profil-k b { display: block; font-size: 13.5px; color: var(--ink); }
-  .profil-menu button { display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px 10px; border: 0; border-radius: 9px; background: none;
+  .profil-menu button { display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px 10px; border: 0; border-radius: 4px; background: none;
     font: inherit; font-size: 13.5px; color: var(--ink); cursor: pointer; text-align: left; }
   .profil-menu button:hover { background: var(--surface-2); }
   /* Carte Sauvegarde : blanche, compacte, icône noire */

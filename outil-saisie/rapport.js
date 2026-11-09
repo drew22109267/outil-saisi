@@ -43,7 +43,7 @@
         .r-tete h1 { font-size: 22px; margin: 0 0 6px; }
         .r-tete ul { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; padding: 0; list-style: none; font-size: 12.5px; color: #5a606a; }
         .r-rubrique { font-size: 18px; margin: 28px 0 10px; padding-top: 6px; border-top: 1px solid #d5d8dd; break-after: avoid; }
-        .ind-section { max-width: ${LARGEUR + 40}px; margin: 0 0 18px; padding: 14px 16px; border: 1px solid #e3e5e8; border-radius: 10px; break-inside: avoid-page; }
+        .ind-section { max-width: ${LARGEUR + 40}px; margin: 0 0 18px; padding: 14px 16px; border: 1px solid #e3e5e8; border-radius: 4px; break-inside: avoid-page; }
         .ind-section h5 { font-size: 15px; margin: 0 0 8px; }
         .ind-tete-actions, .ind-agrandir, .ind-options { display: none !important; }
         .ind-lecture[hidden] { display: block !important; }
