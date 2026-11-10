@@ -555,6 +555,7 @@ class ModeleDuree:
             Zf[vides] = R[vides]
             if not len(avant) or float((Zf[vides] - avant).abs().max()) < tol:
                 break
+        self.rang = min(self.rang, Vt.shape[0])          # au plus min(lignes, colonnes) axes (petit apprentissage)
         self.V = Vt[:self.rang].T
         self.retrecir = torch.ones(self.rang, dtype=TYPE)
 
