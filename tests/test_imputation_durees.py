@@ -1,19 +1,21 @@
 """Durées de séjour inconnues : toutes les méthodes d'estimation, sur des séjours fictifs."""
-import numpy as np
 import pandas as pd
 import pytest
+import torch
 
 from traitement.imputation import METHODES, estimer, tables_durees, valider_estimation
 
 
 def sejours(n=400, graine=0):
     """La durée suit le prix (comme au registre) ; une part des prix et des âges n'est pas écrite."""
-    r = np.random.default_rng(graine)
-    nuits = r.integers(1, 10, n)
-    prix = (nuits * 2500 + 2500).astype(float)
-    prix[r.random(n) < 0.2] = np.nan
-    age = [f"{a} ans" if r.random() > 0.1 else None for a in r.integers(0, 14, n)]
-    return pd.DataFrame({"duree_nuits": nuits, "prix": prix, "age_texte": age, "sexe": r.choice(["M", "F"], n),
+    r = torch.Generator().manual_seed(graine)
+    nuits = torch.randint(1, 10, (n,), generator=r)
+    prix = (nuits * 2500 + 2500).to(torch.float64)
+    prix[torch.rand(n, generator=r) < 0.2] = float("nan")
+    ages, garde = torch.randint(0, 14, (n,), generator=r).tolist(), (torch.rand(n, generator=r) > 0.1).tolist()
+    age = [f"{a} ans" if g else None for a, g in zip(ages, garde)]
+    sexe = ["F" if b else "M" for b in torch.randint(0, 2, (n,), generator=r).tolist()]
+    return pd.DataFrame({"duree_nuits": nuits.tolist(), "prix": prix.tolist(), "age_texte": age, "sexe": sexe,
                          "ancien_nouveau": "N", "issue": "Sortie",
                          "entree": pd.date_range("2025-01-01", periods=n, freq="D")})
 
@@ -29,7 +31,7 @@ def test_chaque_methode_donne_une_duree_et_une_fourchette(methode):
 
 def test_les_methodes_qui_lisent_le_prix_battent_la_mediane():
     s = sejours()
-    s["statut"] = np.where(s["prix"].isna(), "inconnue", "observee")      # les « vrais manquants » : prix non écrit
+    s["statut"] = s["prix"].isna().map({True: "inconnue", False: "observee"})      # les « vrais manquants » : prix non écrit
     v = valider_estimation(s, tous=s, bootstrap=200, repetitions=3, min_entrainement=50)
     assert set(v.index.get_level_values("evaluation")) == {"croisee", "temporelle", "masquage"}
     for evaluation in ("croisee", "temporelle"):
@@ -52,8 +54,8 @@ def test_k_choisi_par_validation_croisee():
 
 def test_wilcoxon_connu():
     from traitement.imputation import _wilcoxon
-    assert _wilcoxon(np.array([1.0] * 20)) < 1e-3                         # toujours plus mauvais : significatif
-    d = np.array([1.0, -1.0] * 15)
+    assert _wilcoxon(torch.tensor([1.0] * 20)) < 1e-3                         # toujours plus mauvais : significatif
+    d = torch.tensor([1.0, -1.0] * 15)
     assert _wilcoxon(d) > 0.9                                              # symétrique : rien
 
 
@@ -88,20 +90,20 @@ def test_xgboost_cases_vides_et_diagnostic():
     """La durée dépend du diagnostic ; XGBoost le lit, apprend malgré les prix non écrits, et choisit ses réglages."""
     from traitement.boosting import XGBoostRegression
     from traitement.imputation import ModeleDuree, familles_diagnostic
-    r = np.random.default_rng(3)
-    X = r.normal(size=(300, 2))
-    X[r.random(300) < 0.3, 0] = np.nan
-    y = np.where(np.isnan(X[:, 0]), 2.0, np.where(X[:, 0] > 0, 5.0, 0.0))
+    r = torch.Generator().manual_seed(3)
+    X = torch.randn((300, 2), generator=r, dtype=torch.float64)
+    X[torch.rand(300, generator=r) < 0.3, 0] = float("nan")
+    y = torch.where(torch.isnan(X[:, 0]), 2.0, torch.where(X[:, 0] > 0, 5.0, 0.0)).to(torch.float64)
     m = XGBoostRegression(100, 0.3, 2).entrainer(X, y)
-    assert np.abs(m.predire(X) - y).mean() < 0.3                    # les manquants ont leur propre côté
+    assert float((m.predire(X) - y).abs().mean()) < 0.3                    # les manquants ont leur propre côté
     s = sejours()
-    s["diagnostic_sortie"] = np.where(s["duree_nuits"] > 5, "Sepsis sévère", "APG")
+    s["diagnostic_sortie"] = s["duree_nuits"].gt(5).map({True: "Sepsis sévère", False: "APG"})
     d = familles_diagnostic(s)
-    assert d.shape == (len(s), 11) and np.nansum(d[:, 0]) > 0 and np.nansum(d[:, 1]) > 0
+    assert d.shape == (len(s), 11) and float(torch.nansum(d[:, 0])) > 0 and float(torch.nansum(d[:, 1])) > 0
     md = ModeleDuree("xgboost").ajuster(s.iloc[:300])
     assert md.reglage in md.erreurs_reglage
     e = md.predire(s.iloc[300:])
-    assert np.abs(e["nuits"] - s.iloc[300:]["duree_nuits"]).mean() < 1.5
+    assert (e["nuits"] - s.iloc[300:]["duree_nuits"]).abs().mean() < 1.5
 
 
 def test_hybride():

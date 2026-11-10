@@ -7,10 +7,10 @@ name = "traitement-registres"
 version = "1.0.0"
 description = "Traitement des registres hospitaliers saisis avec l'outil de saisie : occupation, indicateurs, garde-fous"
 requires-python = ">=3.10"
-dependencies = ["pandas", "numpy", "matplotlib"]
+dependencies = ["pandas", "torch", "matplotlib"]   # torch : version CPU (voir README)
 
 [project.optional-dependencies]
-verification = ["scipy", "statsmodels", "nbformat"]
+verification = ["scipy", "statsmodels", "nbformat", "ipython"]   # juges de la vérification seulement
 
 [tool.setuptools]
 packages = ["traitement"]
