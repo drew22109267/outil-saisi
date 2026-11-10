@@ -23,3 +23,8 @@ __pycache__/
 .vscode/
 .idea/
 .claude/
+
+# Variables locales : jamais suivies (seul .env.example serait publié)
+.env
+.env.*
+!.env.example
