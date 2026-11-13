@@ -73,15 +73,16 @@ def test_trois_scenarios_a_la_main():
 
 
 def test_scenario_attendu_toujours_entre_les_bornes():
-    import numpy as np
-    rng = np.random.default_rng(0)
-    entrees = pd.Timestamp("2026-01-01") + pd.to_timedelta(rng.integers(0, 60, 200), unit="D")
-    n = rng.integers(0, 10, 200)
-    ecrite = rng.random(200) < 0.3
-    inclusif = rng.random(200) < 0.6
-    sorties = entrees + pd.to_timedelta(n - (ecrite & inclusif), unit="D")
+    import torch
+    rng = torch.Generator().manual_seed(0)
+    entrees = pd.Timestamp("2026-01-01") + pd.to_timedelta(torch.randint(0, 60, (200,), generator=rng).tolist(), unit="D")
+    n = torch.randint(0, 10, (200,), generator=rng)
+    ecrite = torch.rand(200, generator=rng) < 0.3
+    inclusif = torch.rand(200, generator=rng) < 0.6
+    sorties = entrees + pd.to_timedelta((n - (ecrite & inclusif).long()).tolist(), unit="D")
+    n, ecrite = n.tolist(), ecrite.tolist()
     df = pd.DataFrame({"service_code": "PED", "date_entree": entrees, "date_sortie": sorties,
-                       "duree_jours": n, "issue": "Sortie", "sortie_calculee": ~ecrite})
+                       "duree_jours": n, "issue": "Sortie", "sortie_calculee": [not e for e in ecrite]})
     s, _ = preparer_sejours(df, "PED", "2026-04-01")
     o = trois_scenarios(s, "2026-04-01")
     assert (o["basse"]["presents"] <= o["attendue"]["presents"] + 1e-9).all()

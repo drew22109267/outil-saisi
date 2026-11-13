@@ -120,11 +120,18 @@ Les scripts s'exécutent sous Linux ; sous Windows, dans **WSL (Ubuntu)**. Insta
 
 ```bash
 python3 -m venv ~/memoire-env
+~/memoire-env/bin/pip install torch --index-url https://download.pytorch.org/whl/cpu   # calcul (CPU)
 ~/memoire-env/bin/pip install pandas matplotlib pytest jupyterlab
-~/memoire-env/bin/pip install scipy statsmodels nbformat     # seulement pour la vérification (juges)
 cd /mnt/c/Users/<utilisateur>/Desktop/outil-saisi
-~/memoire-env/bin/pip install -e .                          # rend le paquet « traitement » utilisable partout
+~/memoire-env/bin/pip install -e ".[verification]"           # paquet « traitement » + juges de la vérification
+sudo apt install nodejs                                      # la vérification exécute le vrai JavaScript de l'outil
 ```
+
+Tout le calcul est en PyTorch (CPU, float64) et pandas. scipy et statsmodels ne servent QUE de juges dans
+`verification/verifier_calculs.py` (bibliothèques de référence, indépendantes de notre code) : le traitement n'en
+dépend pas. L'estimation des durées inconnues valide ses méthodes en parallèle sur tous les cœurs (variable
+`NERA_PROCESSUS` pour en fixer le nombre) et garde le résultat dans `resultats/cache/` (relu pour des séjours
+identiques, par exemple les trois comptages d'un même service).
 
 (Avec `uv` : `uv pip install --python ~/memoire-env/bin/python -e .`.) Le modèle NERA (dépôt nera-modele)
 utilise ce même paquet : une correction faite ici profite aussitôt au modèle.
